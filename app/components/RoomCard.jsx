@@ -1,27 +1,30 @@
-// app/components/RoomCard.js
+// app/components/RoomCard.jsx
+"use client";
+
 import Link from "next/link";
 import FavoriteButton from "./FavoriteButton";
 
-export default function RoomCard({ room }) {
-  const {
-    id, // 👈 svarbu: čia turi būti room.id iš DB
-    name,
-    city,
-    capacity,
-    description,
-    price,
-    primaryImageUrl,
-  } = room;
+export default function RoomCard({ room, onFavoriteChange }) {
+  const primaryImageUrl = room.primaryImageUrl;
+  const city = room.venue_city || room.city || "";
+  const address = room.venue_address || "";
+
+  const handleToggle = (isFavorite) => {
+    if (onFavoriteChange) {
+      onFavoriteChange(room.id, isFavorite);
+    }
+  };
 
   return (
     <article className="rounded-3xl bg-white shadow-sm overflow-hidden flex flex-col">
       <div className="relative h-40 bg-slate-200">
-        <FavoriteButton roomId={room.id} />
+        <FavoriteButton roomId={room.id} onToggle={handleToggle} />
+
         {primaryImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={primaryImageUrl}
-            alt={name}
+            alt={room.name}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -31,28 +34,44 @@ export default function RoomCard({ room }) {
         )}
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
-        <h3 className="heading mb-1 text-base font-semibold text-dark">
-          {name}
-        </h3>
-        <p className="ui-font text-xs text-slate-500 mb-2">
-          {city} • iki {capacity || "?"} vaikų
-        </p>
-        <p className="ui-font mb-3 line-clamp-3 text-xs text-slate-700">
-          {description}
-        </p>
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-base font-semibold text-slate-900 ui-font line-clamp-2">
+            {room.name}
+          </h3>
+          {room.price != null && (
+            <div className="text-right text-sm font-semibold text-primary ui-font">
+              {room.price} € / val.
+            </div>
+          )}
+        </div>
 
-        <div className="mt-auto flex items-center justify-between">
-          <span className="heading text-sm font-semibold text-primary">
-            {price ? `${price} €` : "Kaina sutartinė"}
-          </span>
+        {(city || address) && (
+          <p className="text-xs text-slate-500 ui-font line-clamp-1">
+            {address && <span>{address}</span>}
+            {address && city && <span>, </span>}
+            {city && <span>{city}</span>}
+          </p>
+        )}
 
-          {/* 👇 ČIA SVARBIAUSIA VIETA */}
+        {room.description && (
+          <p className="mt-1 line-clamp-2 text-xs text-slate-600 ui-font">
+            {room.description}
+          </p>
+        )}
+
+        <div className="mt-auto flex items-center justify-between pt-3">
+          {room.capacity && (
+            <span className="text-xs text-slate-500 ui-font">
+              Iki {room.capacity} vaikų
+            </span>
+          )}
+
           <Link
             href={`/kambariai/${room.id}`}
-            className="ui-font rounded-xl bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-dark"
+            className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-primary/90 transition ui-font"
           >
-            Rezervuoti
+            Plačiau
           </Link>
         </div>
       </div>

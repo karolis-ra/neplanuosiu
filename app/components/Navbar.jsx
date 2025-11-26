@@ -8,9 +8,9 @@ export default function Navbar() {
 
   const navLinks = [
     { href: "/", label: "Pradžia" },
-    { href: "/rooms", label: "Žaidimų kambariai" },
-    { href: "/services", label: "Paslaugos" },
-    { href: "/about", label: "Apie mus" },
+    // { href: "/rooms", label: "Žaidimų kambariai" },
+    // { href: "/services", label: "Paslaugos" },
+    // { href: "/about", label: "Apie mus" },
   ];
 
   return (

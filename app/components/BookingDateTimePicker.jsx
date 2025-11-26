@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 
 const MONTHS_LT = [
@@ -49,6 +50,8 @@ export default function BookingDateTimePicker({
   durationMinutes = 120,
   bufferMinutes = 0,
 }) {
+  const router = useRouter();
+
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -228,14 +231,13 @@ export default function BookingDateTimePicker({
     setIsSubmitting(true);
 
     try {
-      // čia vėliau kelsim į supabase bookings insert
-      console.log("Booking request:", {
-        roomId,
-        date: formatDate(selectedDate),
-        time: selectedSlot,
-      });
-      alert(
-        `Rezervacijos užklausa:\n${formatDate(selectedDate)} ${selectedSlot}`
+      const dateStr = formatDate(selectedDate);
+
+      router.push(
+        `/rezervacija?roomId=${roomId}` +
+          `&date=${encodeURIComponent(dateStr)}` +
+          `&time=${encodeURIComponent(selectedSlot)}` +
+          `&duration=${durationMinutes}`
       );
     } finally {
       setIsSubmitting(false);

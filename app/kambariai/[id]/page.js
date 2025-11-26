@@ -3,15 +3,12 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { getRoomGalleryImages } from "../../lib/roomImageUtils";
 import RoomGallery from "@/app/components/room/RoomGallery";
 import RoomInfo from "@/app/components/room/RoomInfo";
 import BookingDateTimePicker from "../../components/BookingDateTimePicker";
 
-// čia – NAUJAS fetchRoomData iš pirmo bloko
-const BUCKET = "public-images";
-
 async function fetchRoomData(roomId) {
-  // 1) kambarys
   const { data: room, error: roomError } = await supabase
     .from("rooms")
     .select(
@@ -24,40 +21,17 @@ async function fetchRoomData(roomId) {
     throw new Error(roomError?.message || "Kambarys nerastas");
   }
 
-  // 2) venue
   const { data: venue } = await supabase
     .from("venues")
     .select("id, name, address, city, phone, email, website")
     .eq("id", room.venue_id)
     .single();
 
-  // 3) paveikslai
-  const { data: images } = await supabase
-    .from("images")
-    .select("path, is_primary, is_cover, position")
-    .eq("room_id", roomId);
-
-  let imageUrls = [];
-
-  if (images && images.length > 0) {
-    const sorted = [...images].sort((a, b) => {
-      if (a.is_primary && !b.is_primary) return -1;
-      if (!a.is_primary && b.is_primary) return 1;
-      if (a.is_cover && !b.is_cover) return -1;
-      if (!a.is_cover && b.is_cover) return 1;
-      return (a.position ?? 9999) - (b.position ?? 9999);
-    });
-
-    imageUrls = sorted
-      .map((img) => {
-        if (!img.path) return null;
-        const { data: publicData } = supabase.storage
-          .from(BUCKET)
-          .getPublicUrl(img.path);
-        return publicData?.publicUrl || null;
-      })
-      .filter(Boolean);
-  }
+  const imageUrls = await getRoomGalleryImages({
+    supabase,
+    roomId: room.id,
+    venueId: room.venue_id,
+  });
 
   return { room, venue, imageUrls };
 }
@@ -71,7 +45,7 @@ export default function RoomBookingPage() {
   const [error, setError] = useState(null);
   const [room, setRoom] = useState(null);
   const [venue, setVenue] = useState(null);
-  const [images, setImages] = useState([]); // 👈 galerijos paveikslėlių URL’ai
+  const [images, setImages] = useState([]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -111,18 +85,14 @@ export default function RoomBookingPage() {
 
   return (
     <div className="mx-auto mt-6 max-w-6xl px-4 pb-10 space-y-10">
-      {/* --- 2 KOLONŲ VIRŠUTINĖ SEKCIA --- */}
       <div className="grid lg:grid-cols-[3fr,2fr] gap-8">
-        {/* KAIRĖ KOLONŲ PUSĖ (Galerija) */}
         <div className="space-y-6">
           <RoomGallery images={images} roomName={room.name} />
         </div>
 
-        {/* DEŠINĖ KOLONŲ PUSĖ (Room Info) */}
         <RoomInfo room={room} venue={venue} />
       </div>
 
-      {/* --- APATINĖ REZERVACIJOS SEKCJA PER VISĄ PLOTĮ --- */}
       <div className="rounded-3xl bg-white p-6 shadow-sm max-w-3xl mx-auto">
         <BookingDateTimePicker
           roomId={room.id}

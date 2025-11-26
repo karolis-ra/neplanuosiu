@@ -4,29 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
 
-export default function FavoriteButton({ roomId }) {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
+export default function FavoriteButton({ roomId, onToggle }) {
+  const [loading, setLoading] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  // pasiimam prisijungusį userį ir tikrinam ar kambarys jau pamėgtas
   useEffect(() => {
-    let mounted = true;
-
-    async function load() {
+    const loadInitial = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!mounted) return;
-
-      setUser(user);
-
-      if (!user) {
-        setIsFavorite(false);
-        setLoading(false);
-        return;
-      }
+      if (!user) return;
 
       const { data, error } = await supabase
         .from("favorite_rooms")
@@ -35,58 +22,59 @@ export default function FavoriteButton({ roomId }) {
         .eq("room_id", roomId)
         .maybeSingle();
 
-      if (!mounted) return;
-      setIsFavorite(!!data && !error);
-      setLoading(false);
-    }
+      if (error) {
+        console.error("favorite check error:", error.message);
+        return;
+      }
 
-    load();
-    return () => {
-      mounted = false;
+      setIsFavorite(!!data);
     };
+
+    loadInitial();
   }, [roomId]);
 
-  async function toggleFavorite(e) {
-    e.stopPropagation();
-    e.preventDefault();
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-    if (!user) {
-      router.push("/prisijungti");
-      return;
-    }
+      if (isFavorite) {
+        const { error } = await supabase
+          .from("favorite_rooms")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("room_id", roomId);
 
-    if (isFavorite) {
-      const { error } = await supabase
-        .from("favorite_rooms")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("room_id", roomId);
+        if (error) {
+          console.error("remove favorite error:", error.message);
+        } else {
+          setIsFavorite(false);
+          if (onToggle) onToggle(false); // 👈 pranešam, kad NEBE favoritas
+        }
+      } else {
+        const { error } = await supabase
+          .from("favorite_rooms")
+          .insert({ user_id: user.id, room_id: roomId });
 
-      if (error) {
-        console.error("remove favorite error:", error);
-        return;
+        if (error) {
+          console.error("add favorite error:", error.message);
+        } else {
+          setIsFavorite(true);
+          if (onToggle) onToggle(true); // 👈 pranešam, kad tapo favoritu
+        }
       }
-
-      setIsFavorite(false);
-    } else {
-      const { error } = await supabase.from("favorite_rooms").insert({
-        user_id: user.id,
-        room_id: roomId,
-      });
-
-      if (error) {
-        console.error("add favorite error:", error);
-        return;
-      }
-
-      setIsFavorite(true);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <button
       type="button"
-      onClick={toggleFavorite}
+      onClick={handleClick}
       disabled={loading}
       className={`absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border text-sm shadow-sm transition
         ${
