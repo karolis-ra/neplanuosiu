@@ -1,5 +1,6 @@
 import "./globals.css";
 import Navbar from "./components/Navbar";
+import "leaflet/dist/leaflet.css";
 
 export const metadata = {
   title: "Neplanuosiu",

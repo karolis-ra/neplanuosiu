@@ -27,7 +27,7 @@ export default function Hero() {
       {/* Background image */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('images/hero_kid.jpg')" }} // įkelk hero-bg.jpg į /public
+        style={{ backgroundImage: "url('/images/hero_kid.jpg')" }} // įkelk hero-bg.jpg į /public
       />
 
       {/* Overlay */}

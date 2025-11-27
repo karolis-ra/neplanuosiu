@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
@@ -7,6 +8,12 @@ import { getRoomGalleryImages } from "../../lib/roomImageUtils";
 import RoomGallery from "@/app/components/room/RoomGallery";
 import RoomInfo from "@/app/components/room/RoomInfo";
 import BookingDateTimePicker from "../../components/BookingDateTimePicker";
+import VenueMap from "@/app/components/VenueMap";
+
+const VenueLeafletMap = dynamic(
+  () => import("@/app/components/VenueLeafletMap"),
+  { ssr: false }
+);
 
 async function fetchRoomData(roomId) {
   const { data: room, error: roomError } = await supabase
@@ -23,7 +30,9 @@ async function fetchRoomData(roomId) {
 
   const { data: venue } = await supabase
     .from("venues")
-    .select("id, name, address, city, phone, email, website")
+    .select(
+      "id, name, address, city, phone, email, website, latitude, longitude"
+    )
     .eq("id", room.venue_id)
     .single();
 
@@ -85,19 +94,28 @@ export default function RoomBookingPage() {
 
   return (
     <div className="mx-auto mt-6 max-w-6xl px-4 pb-10 space-y-10">
-      <div className="grid lg:grid-cols-[3fr,2fr] gap-8">
+      <div className="grid gap-8 lg:grid-cols-[3fr,2fr]">
         <div className="space-y-6">
           <RoomGallery images={images} roomName={room.name} />
         </div>
 
         <RoomInfo room={room} venue={venue} />
       </div>
-
-      <div className="rounded-3xl bg-white p-6 shadow-sm max-w-3xl mx-auto">
+      <div className="flex-c gap-10 mx-auto max-w-6xl rounded-3xl bg-white p-6 shadow-sm">
         <BookingDateTimePicker
           roomId={room.id}
           durationMinutes={room.duration_minutes}
         />
+        {venue && (
+          <VenueMap
+            name={venue.name}
+            address={venue.address}
+            city={venue.city || room.city}
+            latitude={venue.latitude}
+            longitude={venue.longitude}
+            zoom={17}
+          />
+        )}
       </div>
     </div>
   );

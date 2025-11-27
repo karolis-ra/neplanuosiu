@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { buildRoomsWithImages } from "../lib/roomImageUtils";
 import SearchFilters from "../components/SearchFilters";
 import RoomCard from "../components/RoomCard";
+import SearchMapSection from "../components/SearchMapSection";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,22 @@ export default async function SearchPage({
 
   const { data: roomsData, error: roomsError } = await supabase
     .from("rooms")
-    .select("id, venue_id, name, description, price, capacity, city, is_listed")
+    .select(
+      `
+      id,
+      venue_id,
+      name,
+      description,
+      price,
+      capacity,
+      city,
+      is_listed,
+      venues (
+        latitude,
+        longitude
+      )
+    `
+    )
     .eq("is_listed", true)
     .order("price", { ascending: true });
 
@@ -45,6 +61,16 @@ export default async function SearchPage({
     roomsWithImages = await buildRoomsWithImages({ supabase, rooms });
   }
 
+  const mapRooms = roomsWithImages.map((room) => ({
+    id: room.id,
+    name: room.name,
+    city: room.city,
+    price: room.price,
+    latitude: room.venues?.latitude ?? null,
+    longitude: room.venues?.longitude ?? null,
+    imageUrl: room.primaryImageUrl || room.imageUrl || null, // priklausomai kaip pavadinta
+  }));
+
   return (
     <div className="mx-auto mt-6 max-w-6xl px-4 pb-10">
       <SearchFilters
@@ -53,6 +79,8 @@ export default async function SearchPage({
         initialTime={laikas}
         initialPeople={searchParams?.zmones || ""}
       />
+
+      <SearchMapSection rooms={mapRooms} selectedCity={miestas} />
 
       <div className="mt-4 flex items-center justify-between">
         <h1 className="heading text-xl font-bold text-dark">
