@@ -8,6 +8,7 @@ export default function RoomCard({ room, onFavoriteChange }) {
   const primaryImageUrl = room.primaryImageUrl;
   const city = room.venue_city || room.city || "";
   const address = room.venue_address || "";
+  const name = room.venue_name || "";
 
   const handleToggle = (isFavorite) => {
     if (onFavoriteChange) {
@@ -16,7 +17,7 @@ export default function RoomCard({ room, onFavoriteChange }) {
   };
 
   return (
-    <article className="rounded-3xl bg-white shadow-sm overflow-hidden flex flex-col">
+    <article className="relative rounded-3xl bg-white shadow-sm overflow-hidden flex flex-col">
       <div className="relative h-40 bg-slate-200">
         <FavoriteButton roomId={room.id} onToggle={handleToggle} />
 
@@ -39,13 +40,18 @@ export default function RoomCard({ room, onFavoriteChange }) {
           <h3 className="text-base font-semibold text-slate-900 ui-font line-clamp-2">
             {room.name}
           </h3>
+
           {room.price != null && (
             <div className="text-right text-sm font-semibold text-primary ui-font">
               {room.price} € / val.
             </div>
           )}
         </div>
-
+        {room.venue_name && (
+          <p className="text-xs text-slate-500 ui-font line-clamp-1">
+            {room.venue_name}
+          </p>
+        )}
         {(city || address) && (
           <p className="text-xs text-slate-500 ui-font line-clamp-1">
             {address && <span>{address}</span>}

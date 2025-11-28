@@ -16,7 +16,7 @@ export default function Navbar() {
   return (
     <>
       {/* TOP NAVBAR */}
-      <nav className="sticky top-0 left-0 right-0 z-40 bg-primary text-white">
+      <nav className="sticky top-0 left-0 right-0 z-50 bg-primary text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           {/* LOGO */}
           <Link href="/" className="heading text-xl font-bold">

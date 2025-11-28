@@ -24,19 +24,21 @@ export default async function SearchPage({
     .from("rooms")
     .select(
       `
+    id,
+    venue_id,
+    name,
+    description,
+    price,
+    capacity,
+    city,
+    is_listed,
+    venues (
       id,
-      venue_id,
       name,
-      description,
-      price,
-      capacity,
-      city,
-      is_listed,
-      venues (
-        latitude,
-        longitude
-      )
-    `
+      latitude,
+      longitude
+    )
+  `
     )
     .eq("is_listed", true)
     .order("price", { ascending: true });
@@ -56,20 +58,43 @@ export default async function SearchPage({
   }
 
   let roomsWithImages = rooms;
-
   if (!error && rooms.length > 0) {
     roomsWithImages = await buildRoomsWithImages({ supabase, rooms });
   }
 
-  const mapRooms = roomsWithImages.map((room) => ({
-    id: room.id,
-    name: room.name,
-    city: room.city,
-    price: room.price,
-    latitude: room.venues?.latitude ?? null,
-    longitude: room.venues?.longitude ?? null,
-    imageUrl: room.primaryImageUrl || room.imageUrl || null, // priklausomai kaip pavadinta
+  roomsWithImages = roomsWithImages.map((room) => ({
+    ...room,
+    venue_name: room.venues?.name || "",
+    venue_address: room.venues?.address || "",
+    venue_city: room.venues?.city || room.city || "",
   }));
+
+  const venueMap = new Map();
+
+  for (const room of roomsWithImages) {
+    const venue = room.venues;
+    if (!venue || venue.latitude == null || venue.longitude == null) continue;
+
+    if (!venueMap.has(venue.id)) {
+      venueMap.set(venue.id, {
+        id: venue.id,
+        venueName: venue.name,
+        city: room.city,
+        latitude: venue.latitude,
+        longitude: venue.longitude,
+        rooms: [],
+      });
+    }
+
+    venueMap.get(venue.id).rooms.push({
+      id: room.id,
+      name: room.name,
+      price: room.price,
+      imageUrl: room.primaryImageUrl || room.imageUrl || null,
+    });
+  }
+
+  const mapVenues = Array.from(venueMap.values());
 
   return (
     <div className="mx-auto mt-6 max-w-6xl px-4 pb-10">
@@ -80,7 +105,7 @@ export default async function SearchPage({
         initialPeople={searchParams?.zmones || ""}
       />
 
-      <SearchMapSection rooms={mapRooms} selectedCity={miestas} />
+      <SearchMapSection rooms={mapVenues} selectedCity={miestas} />
 
       <div className="mt-4 flex items-center justify-between">
         <h1 className="heading text-xl font-bold text-dark">
