@@ -22,12 +22,7 @@ export default function FavoriteButton({ roomId, onToggle }) {
         .eq("room_id", roomId)
         .maybeSingle();
 
-      if (error) {
-        console.error("favorite check error:", error.message);
-        return;
-      }
-
-      setIsFavorite(!!data);
+      if (!error) setIsFavorite(!!data);
     };
 
     loadInitial();
@@ -47,23 +42,17 @@ export default function FavoriteButton({ roomId, onToggle }) {
           .delete()
           .eq("user_id", user.id)
           .eq("room_id", roomId);
-
-        if (error) {
-          console.error("remove favorite error:", error.message);
-        } else {
+        if (!error) {
           setIsFavorite(false);
-          if (onToggle) onToggle(false); // 👈 pranešam, kad NEBE favoritas
+          onToggle?.(false);
         }
       } else {
         const { error } = await supabase
           .from("favorite_rooms")
           .insert({ user_id: user.id, room_id: roomId });
-
-        if (error) {
-          console.error("add favorite error:", error.message);
-        } else {
+        if (!error) {
           setIsFavorite(true);
-          if (onToggle) onToggle(true); // 👈 pranešam, kad tapo favoritu
+          onToggle?.(true);
         }
       }
     } finally {
@@ -76,29 +65,27 @@ export default function FavoriteButton({ roomId, onToggle }) {
       type="button"
       onClick={handleClick}
       disabled={loading}
-      className={`absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border text-sm shadow-sm transition
+      className={`absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition
         ${
           isFavorite
-            ? "border-transparent bg-white text-red-500"
-            : "border-white/70 bg-black/25 text-white/80 backdrop-blur"
+            ? "bg-white text-[#513CD6]"
+            : "bg-black/25 text-white/80 backdrop-blur border border-white/60"
         }
         ${loading ? "opacity-60 cursor-wait" : "hover:scale-105"}
       `}
-      aria-label={isFavorite ? "Pašalinti iš mėgstamų" : "Pridėti į mėgstamus"}
     >
-      {/* Heart icon */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
-        className="h-5 w-5"
+        className="h-5 w-8"
         fill={isFavorite ? "currentColor" : "none"}
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="1.8"
       >
         <path
+          d="M12 21s-6.8-4.3-8-9C3.3 8.3 5.2 6 7.8 6c1.7 0 3.2.9 4.2 2.2C13 6.9 14.5 6 16.2 6c2.6 0 4.5 2.3 3.8 6c-1.2 4.7-8 9-8 9Z"
           strokeLinecap="round"
           strokeLinejoin="round"
-          d="M12 20.25s-5.25-3.15-7.5-6.15C3.24 12.79 3 11.96 3 11.1 3 9 4.48 7.5 6.5 7.5c1.19 0 2.34.59 3.02 1.54L12 10.9l2.48-1.86A3.77 3.77 0 0 1 17.5 7.5C19.52 7.5 21 9 21 11.1c0 .86-.24 1.69-1.5 2.99-2.25 3-7.5 6.16-7.5 6.16Z"
         />
       </svg>
     </button>

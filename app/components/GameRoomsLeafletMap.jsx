@@ -74,16 +74,16 @@ export default function GameRoomsLeafletMap({ rooms, selectedCity }) {
   }, [selectedCity, venues.length]);
 
   return (
-    <div className="mt-4 space-y-2">
+    <div className="relative mt-4 space-y-2 z-10">
       <h2 className="ui-font text-lg font-semibold">
         Žaidimų kambariai žemėlapyje
       </h2>
-      <div className="overflow-hidden rounded-3xl border border-slate-200">
+      <div className="overflow-hidden rounded-3xl border border-slate-200 z-1">
         <MapContainer
           center={center}
           zoom={zoom}
           scrollWheelZoom={false}
-          className="h-80 w-full"
+          className="h-80 w-full z-1"
         >
           <CtrlScrollZoom />
           <RecenterOnChange center={center} zoom={zoom} />

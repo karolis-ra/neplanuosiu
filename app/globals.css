@@ -31,3 +31,60 @@ body {
 .ui-font {
   font-family: var(--font-ui);
 }
+
+input.time-input::-webkit-calendar-picker-indicator {
+  opacity: 0;
+}
+
+.react-datepicker {
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  font-size: 14px;
+}
+
+.react-datepicker__header {
+  background: #432c69 !important; /* tavo primary */
+  border-bottom: none;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  color: #ffffff;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: #513cd6 !important;
+  color: #ffffff !important;
+}
+
+.react-datepicker__current-month {
+  color: #ffffff !important;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.react-datepicker__day-name {
+  color: #ffffff !important;
+  font-weight: 500;
+}
+
+.react-datepicker-time__header {
+  color: #ffffff !important;
+}
+
+.custom-time-popper .react-datepicker__time-container {
+  width: 110px !important;
+}
+
+.custom-time-popper .react-datepicker__time-box {
+  width: 110px !important;
+}
+
+.custom-time-popper .react-datepicker__time-list-item {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.custom-time-popper .react-datepicker__time-list-item--disabled {
+  display: none;
+}

@@ -77,7 +77,7 @@ export default function AuthMenu() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl bg-white p-3 text-sm text-slate-700 shadow-lg border border-slate-100">
+        <div className="absolute right-0 z-50 mt-2 w-52 rounded-2xl bg-white p-3 text-sm text-slate-700 shadow-lg border border-slate-100">
           {user ? (
             <>
               <div className="mb-2 border-b border-slate-100 pb-2">

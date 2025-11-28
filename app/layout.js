@@ -1,6 +1,7 @@
 import "./globals.css";
 import Navbar from "./components/Navbar";
 import "leaflet/dist/leaflet.css";
+import "react-datepicker/dist/react-datepicker.css";
 
 export const metadata = {
   title: "Neplanuosiu",
