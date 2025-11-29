@@ -47,7 +47,7 @@ export default function RegisterPage() {
         className="space-y-4 rounded-3xl bg-white p-6 shadow-sm"
       >
         <div>
-          <label className="ui-font mb-1 block text-xs font-semibold text-slate-700">
+          <label className="ui-font mb-1 block text-sm font-semibold text-slate-700">
             Vardas, pavardė
           </label>
           <input
@@ -60,7 +60,7 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="ui-font mb-1 block text-xs font-semibold text-slate-700">
+          <label className="ui-font mb-1 block text-sm font-semibold text-slate-700">
             El. paštas
           </label>
           <input
@@ -73,7 +73,7 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="ui-font mb-1 block text-xs font-semibold text-slate-700">
+          <label className="ui-font mb-1 block text-sm font-semibold text-slate-700">
             Slaptažodis
           </label>
           <input
@@ -86,18 +86,18 @@ export default function RegisterPage() {
           />
         </div>
 
-        {errorMsg && <p className="ui-font text-xs text-red-600">{errorMsg}</p>}
+        {errorMsg && <p className="ui-font text-sm text-red-600">{errorMsg}</p>}
 
         <button
           type="submit"
           disabled={loading}
-          className="ui-font w-full rounded-xl bg-primary py-2 text-sm font-semibold text-white shadow-md hover:bg-dark disabled:bg-slate-300"
+          className="ui-font w-full rounded-xl bg-primary py-2 text-lg font-semibold text-white shadow-md hover:bg-dark disabled:bg-slate-300"
         >
           {loading ? "Kuriama..." : "Sukurti paskyrą"}
         </button>
       </form>
 
-      <p className="ui-font mt-3 text-center text-xs text-slate-600">
+      <p className="ui-font mt-3 text-center text-sm text-slate-600">
         Jau turite paskyrą?{" "}
         <a href="/prisijungti" className="text-primary hover:text-dark">
           Prisijunkite

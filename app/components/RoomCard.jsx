@@ -75,9 +75,9 @@ export default function RoomCard({ room, onFavoriteChange }) {
 
           <Link
             href={`/kambariai/${room.id}`}
-            className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-primary/90 transition ui-font"
+            className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-primary/90 transition ui-font"
           >
-            Plačiau
+            Rezervuoti
           </Link>
         </div>
       </div>
