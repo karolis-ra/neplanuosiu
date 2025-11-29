@@ -4,15 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 
-async function handleGoogleLogin() {
-  await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: window.location.origin, // po login'o grįš į tavo puslapį
-    },
-  });
-}
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -37,8 +28,16 @@ export default function LoginPage() {
       return;
     }
 
-    // prisijungė sėkmingai
-    router.push("/"); // arba /paieska, arba kur tu nori
+    router.push("/account");
+  }
+
+  async function handleGoogleLogin() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/account`,
+      },
+    });
   }
 
   return (
@@ -50,7 +49,7 @@ export default function LoginPage() {
         className="space-y-4 rounded-3xl bg-white p-6 shadow-sm"
       >
         <div>
-          <label className="ui-font mb-1 block text-xs font-semibold text-slate-700">
+          <label className="ui-font mb-1 block text-sm font-semibold text-slate-700">
             El. paštas
           </label>
           <input
@@ -63,7 +62,7 @@ export default function LoginPage() {
         </div>
 
         <div>
-          <label className="ui-font mb-1 block text-xs font-semibold text-slate-700">
+          <label className="ui-font mb-1 block text-sm font-semibold text-slate-700">
             Slaptažodis
           </label>
           <input
@@ -76,30 +75,36 @@ export default function LoginPage() {
           />
         </div>
 
-        {errorMsg && <p className="ui-font text-xs text-red-600">{errorMsg}</p>}
+        {errorMsg && (
+          <p className="ui-font text-xs text-red-600">
+            Neteisingi prisijungimo duomenys.
+          </p>
+        )}
 
         <button
           type="submit"
           disabled={loading}
-          className="ui-font w-full rounded-xl bg-primary py-2 text-sm font-semibold text-white shadow-md hover:bg-dark disabled:bg-slate-300"
+          className="ui-font w-full rounded-xl bg-primary py-2 text-md font-semibold text-white shadow-md hover:bg-dark disabled:bg-slate-300"
         >
           {loading ? "Jungiama..." : "Prisijungti"}
         </button>
       </form>
 
-      <p className="ui-font mt-3 text-center text-xs text-slate-600">
+      <button
+        type="button"
+        onClick={handleGoogleLogin}
+        className="w-full rounded-xl mt-3 border border-slate-200 py-2 text-md ui-font hover:bg-slate-50 flex items-center justify-center gap-2"
+      >
+        <img src="/icons/google.png" alt="Google icon" className="w-5 h-5" />
+        Prisijungti su Google
+      </button>
+
+      <p className="ui-font mt-3 text-center text-sm text-slate-600">
         Neturite paskyros?{" "}
         <a href="/registracija" className="text-primary hover:text-dark">
           Sukurti paskyrą
         </a>
       </p>
-      <button
-        type="button"
-        onClick={handleGoogleLogin}
-        className="w-full rounded-xl border border-slate-200 py-2 text-sm ui-font hover:bg-slate-50"
-      >
-        Prisijungti su Google
-      </button>
     </div>
   );
 }

@@ -31,7 +31,7 @@ export default function CityField({ value, onChange }) {
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-slate-700">Miestas</label>
+      <label className="text-sm font-semibold text-slate-700">Miestas</label>
 
       <div className="relative" ref={ref}>
         <button

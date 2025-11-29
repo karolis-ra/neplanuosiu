@@ -55,7 +55,7 @@ export default function Hero() {
 
       <div className="relative z-10 flex h-full items-center">
         <div className="mx-auto flex align-center w-full max-w-6xl flex-col gap-8 px-4 text-white md:flex-row md:items-center md:justify-between">
-          <div className="max-w-xl text-center md:text-left">
+          <div className="mx-auto max-w-xl text-center md:text-left">
             <h1 className="heading mb-4 text-3xl font-bold md:text-5xl">
               Suplanuok vaikų gimtadienį{" "}
               <span className="text-secondary"> be streso</span>
@@ -80,9 +80,9 @@ export default function Hero() {
 
               <button
                 type="submit"
-                className="mt-2 w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-dark"
+                className="mt-2 w-full rounded-full bg-primary px-4 py-2.5 text-lg font-semibold text-white shadow-md transition hover:bg-dark"
               >
-                Ieškoti žaidimų kambarių
+                Ieškoti
               </button>
             </form>
           </div>

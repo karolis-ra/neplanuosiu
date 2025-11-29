@@ -14,7 +14,7 @@ export default function SearchMapSection({ rooms, selectedCity }) {
       <button
         type="button"
         onClick={() => setShowMap((v) => !v)}
-        className="ui-font mb-3 rounded-full border border-slate-300 px-4 py-1 text-xs text-slate-700 hover:bg-slate-50"
+        className="ui-font mb-3 rounded-full border border-slate-300 px-4 py-1 text-lg text-slate-700 hover:bg-slate-50"
       >
         {showMap ? "Slėpti žemėlapį" : "Rodyti žemėlapį"}
       </button>

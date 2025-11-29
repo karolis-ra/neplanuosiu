@@ -3,7 +3,7 @@ import DatePicker from "react-datepicker";
 export default function DateField({ value, onChange }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-slate-700">
+      <label className="text-sm font-semibold text-slate-700">
         Šventės data
       </label>
 

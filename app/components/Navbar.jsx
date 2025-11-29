@@ -80,7 +80,7 @@ export default function Navbar() {
             {link.label}
           </Link>
         ))}
-        <AuthMenu />
+        <AuthMenu onCloseMobileMenu={() => setIsOpen(false)} />
       </div>
     </>
   );

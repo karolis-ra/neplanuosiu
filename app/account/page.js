@@ -9,7 +9,6 @@ import RoomCard from "../components/RoomCard";
 
 function canCancelBooking(booking) {
   if (!booking.event_date || !booking.start_time) return false;
-  // start_time iš Supabase ateis pvz. "14:00:00"
   const [h, m] = booking.start_time.split(":").map(Number);
   const eventDate = new Date(booking.event_date);
   eventDate.setHours(h || 0, m || 0, 0, 0);
@@ -23,6 +22,24 @@ export default function AccountPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  const insertPendingFavoriteIfAny = async (userId) => {
+    if (typeof window === "undefined") return;
+
+    const pendingId = localStorage.getItem("pending_favorite_room_id");
+    if (!pendingId) return;
+
+    const { error } = await supabase.from("favorite_rooms").insert({
+      user_id: userId,
+      room_id: pendingId, // svarbu: jokio Number(), jei room_id yra UUID
+    });
+
+    if (error) {
+      console.error("insert pending favorite error:", error.message);
+    } else {
+      localStorage.removeItem("pending_favorite_room_id");
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -43,7 +60,8 @@ export default function AccountPage() {
       try {
         setLoading(true);
 
-        // FAVORITES
+        await insertPendingFavoriteIfAny(user.id);
+
         const { data: favorites, error: favoritesError } = await supabase
           .from("favorite_rooms")
           .select("room_id, created_at")
@@ -79,7 +97,6 @@ export default function AccountPage() {
           setRooms([]);
         }
 
-        // BOOKINGS
         const { data: bookingsData, error: bookingsError } = await supabase
           .from("bookings")
           .select(
@@ -174,7 +191,6 @@ export default function AccountPage() {
         </p>
       </header>
 
-      {/* Pamėgti kambariai */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold ui-font">Pamėgti kambariai</h2>
@@ -213,7 +229,6 @@ export default function AccountPage() {
         )}
       </section>
 
-      {/* Mano rezervacijos */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold ui-font">Mano rezervacijos</h2>

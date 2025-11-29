@@ -7,6 +7,7 @@ import { supabase } from "@/app/lib/supabaseClient";
 export default function FavoriteButton({ roomId, onToggle }) {
   const [loading, setLoading] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -34,7 +35,14 @@ export default function FavoriteButton({ roomId, onToggle }) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+
+      if (!user) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("pending_favorite_room_id", String(roomId));
+        }
+        router.push("/prisijungti");
+        return;
+      }
 
       if (isFavorite) {
         const { error } = await supabase
@@ -42,6 +50,7 @@ export default function FavoriteButton({ roomId, onToggle }) {
           .delete()
           .eq("user_id", user.id)
           .eq("room_id", roomId);
+
         if (!error) {
           setIsFavorite(false);
           onToggle?.(false);
@@ -50,6 +59,7 @@ export default function FavoriteButton({ roomId, onToggle }) {
         const { error } = await supabase
           .from("favorite_rooms")
           .insert({ user_id: user.id, room_id: roomId });
+
         if (!error) {
           setIsFavorite(true);
           onToggle?.(true);
