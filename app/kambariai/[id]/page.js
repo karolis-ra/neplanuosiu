@@ -12,14 +12,44 @@ import VenueMap from "@/app/components/VenueMap";
 
 const VenueLeafletMap = dynamic(
   () => import("@/app/components/VenueLeafletMap"),
-  { ssr: false }
+  { ssr: false },
 );
+
+// async function fetchRoomData(roomId) {
+//   const { data: room, error: roomError } = await supabase
+//     .from("rooms")
+//     .select(
+//       "id, venue_id, name, description, price, capacity, duration_minutes, buffer_minutes, min_age, max_age, city",
+//     )
+//     .eq("id", roomId)
+//     .single();
+
+//   if (roomError || !room) {
+//     throw new Error(roomError?.message || "Kambarys nerastas");
+//   }
+
+//   const { data: venue } = await supabase
+//     .from("venues")
+//     .select(
+//       "id, name, address, city, phone, email, website, latitude, longitude",
+//     )
+//     .eq("id", room.venue_id)
+//     .single();
+
+//   const imageUrls = await getRoomGalleryImages({
+//     supabase,
+//     roomId: room.id,
+//     venueId: room.venue_id,
+//   });
+
+//   return { room, venue, imageUrls };
+// }
 
 async function fetchRoomData(roomId) {
   const { data: room, error: roomError } = await supabase
     .from("rooms")
     .select(
-      "id, venue_id, name, description, price, capacity, duration_minutes, buffer_minutes, min_age, max_age, city"
+      "id, venue_id, name, description, price, capacity, duration_minutes, buffer_minutes, min_age, max_age, city, extra_hour_price",
     )
     .eq("id", roomId)
     .single();
@@ -31,7 +61,7 @@ async function fetchRoomData(roomId) {
   const { data: venue } = await supabase
     .from("venues")
     .select(
-      "id, name, address, city, phone, email, website, latitude, longitude"
+      "id, name, address, city, phone, email, website, latitude, longitude",
     )
     .eq("id", room.venue_id)
     .single();
@@ -42,7 +72,12 @@ async function fetchRoomData(roomId) {
     venueId: room.venue_id,
   });
 
-  return { room, venue, imageUrls };
+  const result = { room, venue, imageUrls };
+
+  // Išveda tikrą JSON struktūrą
+  console.log(JSON.stringify(result, null, 2));
+
+  return result;
 }
 
 export default function RoomBookingPage() {
@@ -105,6 +140,9 @@ export default function RoomBookingPage() {
         <BookingDateTimePicker
           roomId={room.id}
           durationMinutes={room.duration_minutes}
+          bufferMinutes={room.buffer_minutes}
+          basePrice={room.price}
+          extraHourPrice={room.extra_hour_price}
         />
         {venue && (
           <VenueMap

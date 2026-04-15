@@ -21,7 +21,6 @@ const MONTHS_LT = [
 ];
 
 function formatDate(date) {
-  // YYYY-MM-DD
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
@@ -40,15 +39,36 @@ function minutesToTimeStr(mins) {
   return `${h}:${m}`;
 }
 
-// ar du intervalai [aStart,aEnd) ir [bStart,bEnd) persidengia
 function rangesOverlap(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && bStart < aEnd;
+}
+
+function getWeekdayFromDate(date) {
+  return date.getDay();
+}
+
+function buildBusyIntervals(bookings = [], blocks = []) {
+  const bookingIntervals = bookings.map((b) => ({
+    start: parseTimeToMinutes(b.start_time),
+    end: parseTimeToMinutes(b.end_time),
+  }));
+
+  const blockIntervals = blocks.map((b) => ({
+    start: parseTimeToMinutes(b.start_time),
+    end: parseTimeToMinutes(b.end_time),
+  }));
+
+  return [...bookingIntervals, ...blockIntervals].sort(
+    (a, b) => a.start - b.start,
+  );
 }
 
 export default function BookingDateTimePicker({
   roomId,
   durationMinutes = 120,
   bufferMinutes = 0,
+  basePrice = 0,
+  extraHourPrice = 0,
 }) {
   const router = useRouter();
 
@@ -57,23 +77,27 @@ export default function BookingDateTimePicker({
     d.setDate(1);
     return d;
   });
+
   const [availability, setAvailability] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [slots, setSlots] = useState([]);
-  const [selectedSlot, setSelectedSlot] = useState(null);
   const [busyInfo, setBusyInfo] = useState({ bookings: [], blocks: [] });
+  const [availableStartSlots, setAvailableStartSlots] = useState([]);
+  const [selectedStartTime, setSelectedStartTime] = useState("");
+  const [wantsExtraTime, setWantsExtraTime] = useState("no");
+  const [selectedExtraHours, setSelectedExtraHours] = useState(0);
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [loadingDay, setLoadingDay] = useState(false);
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 1) parsinešam visą savaitės availability kambariui
   useEffect(() => {
     if (!roomId) return;
+
     (async () => {
       try {
         setLoadingMonth(true);
         setError(null);
+
         const { data, error: aErr } = await supabase
           .from("availability")
           .select("weekday, start_time, end_time")
@@ -90,7 +114,6 @@ export default function BookingDateTimePicker({
     })();
   }, [roomId]);
 
-  // 2) kai pasirenka dieną – parsinešam bookings + room_unavailability tam room ir datai
   useEffect(() => {
     if (!roomId || !selectedDate) return;
 
@@ -98,12 +121,13 @@ export default function BookingDateTimePicker({
       try {
         setLoadingDay(true);
         setError(null);
+
         const dateStr = formatDate(selectedDate);
 
-        const [{ data: bookings }, { data: blocks }] = await Promise.all([
+        const [bookingsRes, blocksRes] = await Promise.all([
           supabase
             .from("bookings")
-            .select("start_time, end_time")
+            .select("start_time, end_time, status")
             .eq("room_id", roomId)
             .eq("event_date", dateStr),
           supabase
@@ -113,9 +137,17 @@ export default function BookingDateTimePicker({
             .eq("date", dateStr),
         ]);
 
+        if (bookingsRes.error) throw bookingsRes.error;
+        if (blocksRes.error) throw blocksRes.error;
+
+        const activeBookings = (bookingsRes.data || []).filter((b) => {
+          if (!b.status) return true;
+          return b.status !== "cancelled";
+        });
+
         setBusyInfo({
-          bookings: bookings || [],
-          blocks: blocks || [],
+          bookings: activeBookings,
+          blocks: blocksRes.data || [],
         });
       } catch (e) {
         console.error("bookings/unavailability error", e);
@@ -126,9 +158,9 @@ export default function BookingDateTimePicker({
     })();
   }, [roomId, selectedDate]);
 
-  // 3) apskaičiuojam, kurios dienos turi bent vieną galimą slotą (tam mėnesiui)
   const daysWithOpening = useMemo(() => {
     if (!availability.length) return new Set();
+
     const result = new Set();
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -136,15 +168,15 @@ export default function BookingDateTimePicker({
 
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(year, month, day);
-      const weekday = d.getDay(); // 0-6, kaip tavo DB
+      const weekday = getWeekdayFromDate(d);
       const dayAvail = availability.filter((a) => a.weekday === weekday);
-      if (dayAvail.length === 0) continue;
 
-      // jei bent vienas availability intervalas ilgesnis už event trukmę – žymim kaip atidaromą dieną
+      if (!dayAvail.length) continue;
+
       const hasSlot = dayAvail.some((a) => {
         const start = parseTimeToMinutes(a.start_time);
         const end = parseTimeToMinutes(a.end_time);
-        return end - start >= durationMinutes;
+        return end - start >= durationMinutes + bufferMinutes;
       });
 
       if (hasSlot) {
@@ -153,106 +185,201 @@ export default function BookingDateTimePicker({
     }
 
     return result;
-  }, [availability, currentMonth, durationMinutes]);
+  }, [availability, currentMonth, durationMinutes, bufferMinutes]);
 
-  // 4) apskaičiuojam slotus pasirinktai dienai, atsižvelgiant į bookings + blocks
   useEffect(() => {
     if (!selectedDate) {
-      setSlots([]);
-      setSelectedSlot(null);
+      setAvailableStartSlots([]);
+      setSelectedStartTime("");
+      setWantsExtraTime("no");
+      setSelectedExtraHours(0);
       return;
     }
 
-    const weekday = selectedDate.getDay();
+    const weekday = getWeekdayFromDate(selectedDate);
     const dayAvail = availability.filter((a) => a.weekday === weekday);
 
-    if (dayAvail.length === 0) {
-      setSlots([]);
-      setSelectedSlot(null);
+    if (!dayAvail.length) {
+      setAvailableStartSlots([]);
+      setSelectedStartTime("");
+      setWantsExtraTime("no");
+      setSelectedExtraHours(0);
       return;
     }
 
-    const bookings = busyInfo.bookings || [];
-    const blocks = busyInfo.blocks || [];
-
+    const busyIntervals = buildBusyIntervals(
+      busyInfo.bookings,
+      busyInfo.blocks,
+    );
     const newSlots = [];
+    const step = 30;
 
     dayAvail.forEach((a) => {
-      const start = parseTimeToMinutes(a.start_time);
-      const end = parseTimeToMinutes(a.end_time);
-      const step = 30; // kas 30 min
-      const eventLength = durationMinutes + bufferMinutes;
+      const availStart = parseTimeToMinutes(a.start_time);
+      const availEnd = parseTimeToMinutes(a.end_time);
 
-      for (let t = start; t + durationMinutes <= end; t += step) {
-        const slotStart = t;
-        const slotEnd = t + durationMinutes;
+      for (
+        let t = availStart;
+        t + durationMinutes + bufferMinutes <= availEnd;
+        t += step
+      ) {
+        const bookingEnd = t + durationMinutes;
+        const occupiedUntil = bookingEnd + bufferMinutes;
 
-        // patikrinam persidengimą su bookings
-        const overlapsBooking = bookings.some((b) => {
-          const bStart = parseTimeToMinutes(b.start_time);
-          const bEnd = parseTimeToMinutes(b.end_time);
-          return rangesOverlap(slotStart, slotEnd, bStart, bEnd);
-        });
+        const hasConflict = busyIntervals.some((interval) =>
+          rangesOverlap(t, occupiedUntil, interval.start, interval.end),
+        );
 
-        if (overlapsBooking) continue;
-
-        // patikrinam persidengimą su blokais
-        const overlapsBlock = blocks.some((b) => {
-          const bStart = parseTimeToMinutes(b.start_time);
-          const bEnd = parseTimeToMinutes(b.end_time);
-          return rangesOverlap(slotStart, slotEnd, bStart, bEnd);
-        });
-
-        if (overlapsBlock) continue;
-
-        newSlots.push({
-          label: `${minutesToTimeStr(slotStart)}–${minutesToTimeStr(slotEnd)}`,
-          value: minutesToTimeStr(slotStart),
-        });
+        if (!hasConflict) {
+          newSlots.push({
+            value: minutesToTimeStr(t),
+            label: `${minutesToTimeStr(t)} - ${minutesToTimeStr(bookingEnd)}`,
+          });
+        }
       }
     });
 
-    setSlots(newSlots);
-    setSelectedSlot(null);
+    setAvailableStartSlots(newSlots);
+    setSelectedStartTime("");
+    setWantsExtraTime("no");
+    setSelectedExtraHours(0);
   }, [selectedDate, availability, busyInfo, durationMinutes, bufferMinutes]);
+
+  const extraHourOptions = useMemo(() => {
+    if (!selectedDate || !selectedStartTime) return [];
+
+    const weekday = getWeekdayFromDate(selectedDate);
+    const dayAvail = availability.filter((a) => a.weekday === weekday);
+    if (!dayAvail.length) return [];
+
+    const startMinutes = parseTimeToMinutes(selectedStartTime);
+    const busyIntervals = buildBusyIntervals(
+      busyInfo.bookings,
+      busyInfo.blocks,
+    );
+
+    const containingAvailability = dayAvail.find((a) => {
+      const aStart = parseTimeToMinutes(a.start_time);
+      const aEnd = parseTimeToMinutes(a.end_time);
+      return aStart <= startMinutes && aEnd >= startMinutes + durationMinutes;
+    });
+
+    if (!containingAvailability) return [];
+
+    const availEnd = parseTimeToMinutes(containingAvailability.end_time);
+    let nextConflictStart = availEnd;
+
+    busyIntervals.forEach((interval) => {
+      if (interval.start >= startMinutes + durationMinutes) {
+        nextConflictStart = Math.min(nextConflictStart, interval.start);
+      }
+    });
+
+    const maxExtraMinutes =
+      nextConflictStart - startMinutes - durationMinutes - bufferMinutes;
+
+    if (maxExtraMinutes < 60) return [];
+
+    const maxFullHours = Math.min(4, Math.floor(maxExtraMinutes / 60));
+
+    return Array.from({ length: maxFullHours }, (_, i) => ({
+      value: i + 1,
+      label: `+${i + 1} val.`,
+    }));
+  }, [
+    selectedDate,
+    selectedStartTime,
+    availability,
+    busyInfo,
+    durationMinutes,
+    bufferMinutes,
+  ]);
+
+  useEffect(() => {
+    if (wantsExtraTime === "no") {
+      setSelectedExtraHours(0);
+      return;
+    }
+
+    if (!extraHourOptions.length) {
+      setWantsExtraTime("no");
+      setSelectedExtraHours(0);
+      return;
+    }
+
+    const stillValid = extraHourOptions.some(
+      (opt) => opt.value === selectedExtraHours,
+    );
+
+    if (!stillValid) {
+      setSelectedExtraHours(extraHourOptions[0]?.value || 0);
+    }
+  }, [wantsExtraTime, extraHourOptions, selectedExtraHours]);
 
   function changeMonth(offset) {
     const d = new Date(currentMonth);
     d.setMonth(d.getMonth() + offset);
     setCurrentMonth(d);
     setSelectedDate(null);
-    setSlots([]);
-    setSelectedSlot(null);
+    setAvailableStartSlots([]);
+    setSelectedStartTime("");
+    setWantsExtraTime("no");
+    setSelectedExtraHours(0);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!selectedDate || !selectedSlot) return;
+    if (!selectedDate || !selectedStartTime) return;
+
     setIsSubmitting(true);
 
     try {
       const dateStr = formatDate(selectedDate);
+      const extraHours =
+        wantsExtraTime === "yes" ? Number(selectedExtraHours || 0) : 0;
+      const extraMinutes = extraHours * 60;
 
       router.push(
-        `/rezervacija?roomId=${roomId}` +
+        `/rezervacija?roomId=${encodeURIComponent(roomId)}` +
           `&date=${encodeURIComponent(dateStr)}` +
-          `&time=${encodeURIComponent(selectedSlot)}` +
-          `&duration=${durationMinutes}`
+          `&time=${encodeURIComponent(selectedStartTime)}` +
+          `&duration=${encodeURIComponent(durationMinutes)}` +
+          `&extraHours=${encodeURIComponent(extraHours)}` +
+          `&extraMinutes=${encodeURIComponent(extraMinutes)}` +
+          `&basePrice=${encodeURIComponent(basePrice || 0)}` +
+          `&extraHourPrice=${encodeURIComponent(extraHourPrice || 0)}`,
       );
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  const totalDurationMinutes =
+    durationMinutes + (wantsExtraTime === "yes" ? selectedExtraHours * 60 : 0);
+
+  const extraPrice =
+    wantsExtraTime === "yes"
+      ? Number(selectedExtraHours || 0) * Number(extraHourPrice || 0)
+      : 0;
+
+  const totalPrice = Number(basePrice || 0) + extraPrice;
+  const startMinutes = selectedStartTime
+    ? parseTimeToMinutes(selectedStartTime)
+    : null;
+  const endMinutes =
+    startMinutes != null ? startMinutes + totalDurationMinutes : null;
+
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstWeekday = new Date(year, month, 1).getDay(); // 0-6
+  const firstWeekday = new Date(year, month, 1).getDay();
 
   const dayCells = [];
+
   for (let i = 0; i < firstWeekday; i++) {
     dayCells.push(<div key={`empty-${i}`} />);
   }
+
   for (let day = 1; day <= daysInMonth; day++) {
     const d = new Date(year, month, day);
     const dateStr = formatDate(d);
@@ -266,117 +393,263 @@ export default function BookingDateTimePicker({
         disabled={!isAvailable}
         onClick={() => isAvailable && setSelectedDate(d)}
         className={[
-          "ui-font flex h-8 w-8 items-center justify-center rounded-full text-xs",
+          "ui-font flex h-[42px] w-[42px] items-center justify-center rounded-full text-[14px] font-semibold transition-all duration-200",
           isSelected
-            ? "bg-primary text-white"
+            ? "bg-primary text-white shadow-md shadow-primary/20 scale-[1.03]"
             : isAvailable
-            ? "bg-primary/10 text-primary hover:bg-primary/20"
-            : "text-slate-300",
+              ? "bg-white text-primary border border-primary/12 hover:border-primary/25 hover:bg-primary/8 hover:shadow-sm"
+              : "bg-transparent text-slate-300 cursor-not-allowed",
         ].join(" ")}
       >
         {day}
-      </button>
+      </button>,
     );
   }
 
-  const isValid = selectedDate && selectedSlot;
+  const isValid = !!selectedDate && !!selectedStartTime;
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <h2 className="heading text-lg font-semibold text-dark">
-        Pasirink šventės datą ir laiką
-      </h2>
+    <form className="space-y-6" onSubmit={handleSubmit}>
+      <div className="space-y-1">
+        <h2 className="heading text-[22px] font-semibold text-dark">
+          Pasirink šventės datą ir laiką
+        </h2>
+        <p className="ui-font text-[14px] text-slate-500">
+          Pasirink datą, pradžios laiką ir, jei reikia, pridėk papildomų
+          valandų.
+        </p>
+      </div>
 
-      {error && <p className="ui-font text-xs text-red-600">{error}</p>}
+      {error && (
+        <div className="rounded-[20px] border border-red-100 bg-red-50 px-4 py-3">
+          <p className="ui-font text-[13px] text-red-600">{error}</p>
+        </div>
+      )}
 
-      {/* Kalendorius + laikas */}
-      <div className="grid gap-4 md:grid-cols-[2fr,3fr] items-start">
-        {/* Mini kalendorius */}
-        <div className="rounded-2xl bg-slate-50 p-3">
-          <div className="mb-2 flex items-center justify-between">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
             <button
               type="button"
               onClick={() => changeMonth(-1)}
-              className="ui-font text-xs text-slate-500 hover:text-primary"
+              className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-slate-200 bg-white text-[16px] text-slate-600 transition hover:border-primary/30 hover:text-primary"
             >
               ←
             </button>
-            <span className="ui-font text-xs font-semibold text-slate-700">
+
+            <span className="ui-font text-[15px] font-semibold text-slate-800">
               {year} m. {MONTHS_LT[month]}
             </span>
+
             <button
               type="button"
               onClick={() => changeMonth(1)}
-              className="ui-font text-xs text-slate-500 hover:text-primary"
+              className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-slate-200 bg-white text-[16px] text-slate-600 transition hover:border-primary/30 hover:text-primary"
             >
               →
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center">
+          <div className="mb-3 grid grid-cols-7 gap-[8px] text-center">
             {["S", "P", "A", "T", "K", "Pn", "Š"].map((d) => (
               <div
                 key={d}
-                className="ui-font mb-1 text-[10px] font-semibold text-slate-400"
+                className="ui-font flex h-[24px] items-center justify-center text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-400"
               >
                 {d}
               </div>
             ))}
-            {dayCells}
           </div>
+
+          <div className="grid grid-cols-7 gap-[8px]">{dayCells}</div>
         </div>
 
-        {/* Laiko slotai */}
-        <div className="rounded-2xl bg-slate-50 p-3">
-          <p className="ui-font mb-2 text-xs text-slate-600">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="ui-font mb-4 text-[14px] text-slate-600">
             {selectedDate
-              ? `Pasirinkta: ${formatDate(selectedDate)}`
+              ? `Pasirinkta data: ${formatDate(selectedDate)}`
               : "Pirma pasirink datą kalendoriuje."}
           </p>
 
           {loadingDay && selectedDate && (
-            <p className="ui-font text-xs text-slate-500">
+            <p className="ui-font text-[14px] text-slate-500">
               Kraunami laisvi laikai...
             </p>
           )}
 
-          {!loadingDay && selectedDate && slots.length === 0 && (
-            <p className="ui-font text-xs text-slate-500">
-              Šią dieną laisvų laikų nėra.
-            </p>
+          {!loadingDay && selectedDate && availableStartSlots.length === 0 && (
+            <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+              <p className="ui-font text-[14px] text-slate-500">
+                Šią dieną laisvų laikų nėra.
+              </p>
+            </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            {slots.map((slot) => (
-              <button
-                key={slot.value}
-                type="button"
-                onClick={() => setSelectedSlot(slot.value)}
-                className={[
-                  "ui-font rounded-full border px-3 py-1 text-xs",
-                  selectedSlot === slot.value
-                    ? "border-primary bg-primary text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-primary hover:text-primary",
-                ].join(" ")}
-              >
-                {slot.label}
-              </button>
-            ))}
-          </div>
+          {!loadingDay && selectedDate && availableStartSlots.length > 0 && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="ui-font block text-[13px] font-semibold text-slate-700">
+                  Pradžios laikas
+                </label>
+                <select
+                  value={selectedStartTime}
+                  onChange={(e) => {
+                    setSelectedStartTime(e.target.value);
+                    setWantsExtraTime("no");
+                    setSelectedExtraHours(0);
+                  }}
+                  className="ui-font h-[52px] w-full rounded-[18px] border border-slate-200 bg-slate-50 px-4 text-[14px] text-slate-800 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="">Pasirink laiką</option>
+                  {availableStartSlots.map((slot) => (
+                    <option key={slot.value} value={slot.value}>
+                      {slot.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedStartTime && (
+                <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-4 space-y-4">
+                  <div className="space-y-2">
+                    <label className="ui-font block text-[13px] font-semibold text-slate-700">
+                      Ar norite papildomo laiko?
+                    </label>
+                    <select
+                      value={wantsExtraTime}
+                      onChange={(e) => setWantsExtraTime(e.target.value)}
+                      className="ui-font h-[52px] w-full rounded-[18px] border border-slate-200 bg-white px-4 text-[14px] text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    >
+                      <option value="no">Ne</option>
+                      <option
+                        value="yes"
+                        disabled={extraHourOptions.length === 0}
+                      >
+                        Taip
+                      </option>
+                    </select>
+                  </div>
+
+                  {wantsExtraTime === "yes" && extraHourOptions.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="ui-font block text-[13px] font-semibold text-slate-700">
+                        Papildomas laikas
+                      </label>
+                      <select
+                        value={selectedExtraHours}
+                        onChange={(e) =>
+                          setSelectedExtraHours(Number(e.target.value))
+                        }
+                        className="ui-font h-[52px] w-full rounded-[18px] border border-slate-200 bg-white px-4 text-[14px] text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      >
+                        {extraHourOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {selectedStartTime && extraHourOptions.length === 0 && (
+                    <div className="rounded-[16px] bg-white px-4 py-3">
+                      <p className="ui-font text-[13px] leading-[20px] text-slate-500">
+                        Šiam laikui papildomų valandų pridėti negalima, nes turi
+                        likti laiko kambario paruošimui prieš kitą rezervaciją.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {durationMinutes && (
-        <p className="ui-font text-xs text-slate-500">
-          Šventės trukmė šiame kambaryje – apie{" "}
-          <span className="font-semibold">{durationMinutes} min</span>.
-        </p>
-      )}
+      <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="ui-font mb-4 text-[15px] font-semibold text-slate-800">
+          Rezervacijos suvestinė
+        </h3>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-4">
+              <span className="ui-font text-[14px] text-slate-500">
+                Standartinė trukmė
+              </span>
+              <span className="ui-font text-[14px] font-semibold text-slate-800">
+                {durationMinutes} min
+              </span>
+            </div>
+
+            {selectedStartTime && endMinutes != null && (
+              <div className="flex items-center justify-between gap-4">
+                <span className="ui-font text-[14px] text-slate-500">
+                  Rezervacijos laikas
+                </span>
+                <span className="ui-font text-[14px] font-semibold text-slate-800">
+                  {selectedStartTime} - {minutesToTimeStr(endMinutes)}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4">
+              <span className="ui-font text-[14px] text-slate-500">
+                Bazinė kaina
+              </span>
+              <span className="ui-font text-[14px] font-semibold text-slate-800">
+                {Number(basePrice || 0).toFixed(2)} €
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {wantsExtraTime === "yes" && selectedExtraHours > 0 ? (
+              <>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="ui-font text-[14px] text-slate-500">
+                    Papildomas laikas
+                  </span>
+                  <span className="ui-font text-[14px] font-semibold text-slate-800">
+                    {selectedExtraHours} val.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="ui-font text-[14px] text-slate-500">
+                    Papildomo laiko kaina
+                  </span>
+                  <span className="ui-font text-[14px] font-semibold text-slate-800">
+                    {Number(extraPrice || 0).toFixed(2)} €
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-[16px] bg-slate-50 px-4 py-3">
+                <p className="ui-font text-[13px] text-slate-500">
+                  Papildomas laikas nepasirinktas.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="my-5 h-px bg-slate-200" />
+
+        <div className="flex items-center justify-between gap-4">
+          <span className="ui-font text-[15px] font-semibold text-slate-700">
+            Iš viso
+          </span>
+          <span className="ui-font text-[18px] font-semibold text-dark">
+            {Number(totalPrice || 0).toFixed(2)} €
+          </span>
+        </div>
+      </div>
 
       <button
         type="submit"
         disabled={!isValid || isSubmitting}
-        className="ui-font mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+        className="ui-font inline-flex h-[54px] w-full items-center justify-center rounded-[18px] bg-primary px-6 text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
       >
         {isSubmitting ? "Siunčiama..." : "Tęsti rezervaciją"}
       </button>
