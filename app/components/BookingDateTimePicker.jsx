@@ -1,9 +1,8 @@
-// app/components/BookingDateTimePicker.js
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
+import BookingActionButtons from "./buttons/BookingActionsButtons";
 
 const MONTHS_LT = [
   "Sausis",
@@ -49,13 +48,13 @@ function getWeekdayFromDate(date) {
 
 function buildBusyIntervals(bookings = [], blocks = []) {
   const bookingIntervals = bookings.map((b) => ({
-    start: parseTimeToMinutes(b.start_time),
-    end: parseTimeToMinutes(b.end_time),
+    start: parseTimeToMinutes(String(b.start_time).slice(0, 5)),
+    end: parseTimeToMinutes(String(b.end_time).slice(0, 5)),
   }));
 
   const blockIntervals = blocks.map((b) => ({
-    start: parseTimeToMinutes(b.start_time),
-    end: parseTimeToMinutes(b.end_time),
+    start: parseTimeToMinutes(String(b.start_time).slice(0, 5)),
+    end: parseTimeToMinutes(String(b.end_time).slice(0, 5)),
   }));
 
   return [...bookingIntervals, ...blockIntervals].sort(
@@ -70,8 +69,6 @@ export default function BookingDateTimePicker({
   basePrice = 0,
   extraHourPrice = 0,
 }) {
-  const router = useRouter();
-
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -88,7 +85,6 @@ export default function BookingDateTimePicker({
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [loadingDay, setLoadingDay] = useState(false);
   const [error, setError] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!roomId) return;
@@ -174,8 +170,8 @@ export default function BookingDateTimePicker({
       if (!dayAvail.length) continue;
 
       const hasSlot = dayAvail.some((a) => {
-        const start = parseTimeToMinutes(a.start_time);
-        const end = parseTimeToMinutes(a.end_time);
+        const start = parseTimeToMinutes(String(a.start_time).slice(0, 5));
+        const end = parseTimeToMinutes(String(a.end_time).slice(0, 5));
         return end - start >= durationMinutes + bufferMinutes;
       });
 
@@ -211,12 +207,13 @@ export default function BookingDateTimePicker({
       busyInfo.bookings,
       busyInfo.blocks,
     );
+
     const newSlots = [];
     const step = 30;
 
     dayAvail.forEach((a) => {
-      const availStart = parseTimeToMinutes(a.start_time);
-      const availEnd = parseTimeToMinutes(a.end_time);
+      const availStart = parseTimeToMinutes(String(a.start_time).slice(0, 5));
+      const availEnd = parseTimeToMinutes(String(a.end_time).slice(0, 5));
 
       for (
         let t = availStart;
@@ -259,14 +256,17 @@ export default function BookingDateTimePicker({
     );
 
     const containingAvailability = dayAvail.find((a) => {
-      const aStart = parseTimeToMinutes(a.start_time);
-      const aEnd = parseTimeToMinutes(a.end_time);
+      const aStart = parseTimeToMinutes(String(a.start_time).slice(0, 5));
+      const aEnd = parseTimeToMinutes(String(a.end_time).slice(0, 5));
       return aStart <= startMinutes && aEnd >= startMinutes + durationMinutes;
     });
 
     if (!containingAvailability) return [];
 
-    const availEnd = parseTimeToMinutes(containingAvailability.end_time);
+    const availEnd = parseTimeToMinutes(
+      String(containingAvailability.end_time).slice(0, 5),
+    );
+
     let nextConflictStart = availEnd;
 
     busyIntervals.forEach((interval) => {
@@ -327,47 +327,25 @@ export default function BookingDateTimePicker({
     setSelectedExtraHours(0);
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!selectedDate || !selectedStartTime) return;
-
-    setIsSubmitting(true);
-
-    try {
-      const dateStr = formatDate(selectedDate);
-      const extraHours =
-        wantsExtraTime === "yes" ? Number(selectedExtraHours || 0) : 0;
-      const extraMinutes = extraHours * 60;
-
-      router.push(
-        `/rezervacija?roomId=${encodeURIComponent(roomId)}` +
-          `&date=${encodeURIComponent(dateStr)}` +
-          `&time=${encodeURIComponent(selectedStartTime)}` +
-          `&duration=${encodeURIComponent(durationMinutes)}` +
-          `&extraHours=${encodeURIComponent(extraHours)}` +
-          `&extraMinutes=${encodeURIComponent(extraMinutes)}` +
-          `&basePrice=${encodeURIComponent(basePrice || 0)}` +
-          `&extraHourPrice=${encodeURIComponent(extraHourPrice || 0)}`,
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   const totalDurationMinutes =
     durationMinutes + (wantsExtraTime === "yes" ? selectedExtraHours * 60 : 0);
 
-  const extraPrice =
-    wantsExtraTime === "yes"
-      ? Number(selectedExtraHours || 0) * Number(extraHourPrice || 0)
-      : 0;
+  const extraHours =
+    wantsExtraTime === "yes" ? Number(selectedExtraHours || 0) : 0;
 
+  const extraMinutes = extraHours * 60;
+
+  const extraPrice = extraHours * Number(extraHourPrice || 0);
   const totalPrice = Number(basePrice || 0) + extraPrice;
+
   const startMinutes = selectedStartTime
     ? parseTimeToMinutes(selectedStartTime)
     : null;
+
   const endMinutes =
     startMinutes != null ? startMinutes + totalDurationMinutes : null;
+
+  const selectedDateStr = selectedDate ? formatDate(selectedDate) : "";
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -409,7 +387,7 @@ export default function BookingDateTimePicker({
   const isValid = !!selectedDate && !!selectedStartTime;
 
   return (
-    <form className="space-y-6" onSubmit={handleSubmit}>
+    <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="heading text-[22px] font-semibold text-dark">
           Pasirink šventės datą ir laiką
@@ -461,7 +439,17 @@ export default function BookingDateTimePicker({
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-[8px]">{dayCells}</div>
+          <div className="grid grid-cols-7 gap-[8px]">
+            {loadingMonth ? (
+              <div className="col-span-7 rounded-[16px] bg-slate-50 px-4 py-3">
+                <p className="ui-font text-[13px] text-slate-500">
+                  Kraunamas kalendorius...
+                </p>
+              </div>
+            ) : (
+              dayCells
+            )}
+          </div>
         </div>
 
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -510,7 +498,7 @@ export default function BookingDateTimePicker({
               </div>
 
               {selectedStartTime && (
-                <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-4 space-y-4">
+                <div className="space-y-4 rounded-[22px] border border-slate-100 bg-slate-50 p-4">
                   <div className="space-y-2">
                     <label className="ui-font block text-[13px] font-semibold text-slate-700">
                       Ar norite papildomo laiko?
@@ -646,13 +634,17 @@ export default function BookingDateTimePicker({
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={!isValid || isSubmitting}
-        className="ui-font inline-flex h-[54px] w-full items-center justify-center rounded-[18px] bg-primary px-6 text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
-      >
-        {isSubmitting ? "Siunčiama..." : "Tęsti rezervaciją"}
-      </button>
-    </form>
+      <BookingActionButtons
+        roomId={roomId}
+        selectedDate={selectedDateStr}
+        selectedTime={selectedStartTime}
+        baseDurationMinutes={durationMinutes}
+        extraHours={extraHours}
+        extraMinutes={extraMinutes}
+        basePrice={basePrice}
+        extraHourPrice={extraHourPrice}
+        totalPrice={totalPrice}
+      />
+    </div>
   );
 }
