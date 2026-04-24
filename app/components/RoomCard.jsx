@@ -1,4 +1,3 @@
-// app/components/RoomCard.jsx
 "use client";
 
 import Link from "next/link";
@@ -8,7 +7,6 @@ export default function RoomCard({ room, onFavoriteChange }) {
   const primaryImageUrl = room.primaryImageUrl;
   const city = room.venue_city || room.city || "";
   const address = room.venue_address || "";
-  const name = room.venue_name || "";
 
   const handleToggle = (isFavorite) => {
     if (onFavoriteChange) {
@@ -21,18 +19,24 @@ export default function RoomCard({ room, onFavoriteChange }) {
       <div className="relative h-40 bg-slate-200">
         <FavoriteButton roomId={room.id} onToggle={handleToggle} />
 
-        {primaryImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={primaryImageUrl}
-            alt={room.name}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary to-dark text-xs text-white ui-font">
-            Nuotrauka netrukus
-          </div>
-        )}
+        <Link
+          href={`/kambariai/${room.id}`}
+          className="block h-full w-full"
+          aria-label={`Atverti ${room.name} puslapį`}
+        >
+          {primaryImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={primaryImageUrl}
+              alt={room.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary to-dark text-xs text-white ui-font">
+              Nuotrauka netrukus
+            </div>
+          )}
+        </Link>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-4">
@@ -47,11 +51,13 @@ export default function RoomCard({ room, onFavoriteChange }) {
             </div>
           )}
         </div>
+
         {room.venue_name && (
           <p className="text-xs text-slate-500 ui-font line-clamp-1">
             {room.venue_name}
           </p>
         )}
+
         {(city || address) && (
           <p className="text-xs text-slate-500 ui-font line-clamp-1">
             {address && <span>{address}</span>}

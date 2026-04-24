@@ -1,68 +1,91 @@
 "use client";
 
-export default function RoomInfo({ room, venue }) {
+const WEEKDAY_LABELS = {
+  0: "Sekmadienis",
+  1: "Pirmadienis",
+  2: "Antradienis",
+  3: "Trečiadienis",
+  4: "Ketvirtadienis",
+  5: "Penktadienis",
+  6: "Šeštadienis",
+};
+
+function formatAvailability(availability = []) {
+  if (!availability.length) return [];
+
+  return [...availability]
+    .sort((a, b) => a.weekday - b.weekday)
+    .map((item) => {
+      const startTime = String(item.start_time || "").slice(0, 5);
+      const endTime = String(item.end_time || "").slice(0, 5);
+
+      return `${WEEKDAY_LABELS[item.weekday] || "Diena"} ${startTime}-${endTime}`;
+    });
+}
+
+export default function RoomInfo({ room, venue, availability = [] }) {
   if (!room || !venue) return null;
 
+  const availabilityLines = formatAvailability(availability);
+
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm space-y-6">
-      {/* --- Pavadinimas ir pagrindinė info --- */}
+    <div className="space-y-6 rounded-3xl bg-white p-6 shadow-sm">
       <div>
-        <h1 className="heading text-2xl font-bold text-dark mb-2">
+        <h1 className="heading mb-2 text-2xl font-bold text-dark">
           {room.name}
         </h1>
 
-        <div className="text-sm text-gray-600 ui-font">
+        <div className="ui-font text-sm text-gray-600">
           <p>
             {room.city} • Talpa iki {room.capacity} vaikų • Amžius{" "}
-            {room.min_age}–{room.max_age} m.
+            {room.min_age ?? "-"}-{room.max_age ?? "-"} m.
           </p>
         </div>
       </div>
 
-      {/* --- Aprašymas --- */}
       <div>
-        <h2 className="font-semibold text-lg text-dark mb-1 ui-font">
+        <h2 className="ui-font mb-1 text-lg font-semibold text-dark">
           Aprašymas
         </h2>
-        <p className="text-gray-700 leading-relaxed ui-font whitespace-pre-line">
-          {room.description}
+        <p className="ui-font whitespace-pre-line leading-relaxed text-gray-700">
+          {room.description || "Aprašymas nepateiktas."}
         </p>
       </div>
 
-      {/* --- Trukmė ir kaina --- */}
-      <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl">
+      <div className="grid grid-cols-2 gap-4 rounded-2xl bg-slate-50 p-4">
         <div>
-          <p className="text-sm text-gray-500 ui-font">Trukmė</p>
+          <p className="ui-font text-sm text-gray-500">
+            Minimali rezervacija
+          </p>
           <p className="font-semibold text-dark">{room.duration_minutes} min</p>
         </div>
         <div>
-          <p className="text-sm text-gray-500 ui-font">Kaina nuo</p>
+          <p className="ui-font text-sm text-gray-500">Kaina nuo</p>
           <p className="font-semibold text-primary">
-            {room.price.toFixed(2)} €
+            {Number(room.price || 0).toFixed(2)} €
           </p>
         </div>
       </div>
 
-      {/* --- Vieta --- */}
       <div className="space-y-1">
-        <h2 className="font-semibold text-lg text-dark mb-1 ui-font">Vieta</h2>
+        <h2 className="ui-font mb-1 text-lg font-semibold text-dark">Vieta</h2>
 
-        <p className="text-sm text-gray-700 ui-font">
+        <p className="ui-font text-sm text-gray-700">
           <span className="font-semibold">{venue.name}</span>
           <br />
-          {venue.address}, {venue.city}
+          {venue.address || "Adresas nenurodytas"}
+          {venue.city ? `, ${venue.city}` : ""}
         </p>
       </div>
 
-      {/* --- Kontaktai --- */}
       <div className="space-y-1">
-        <h2 className="font-semibold text-lg text-dark mb-1 ui-font">
+        <h2 className="ui-font mb-1 text-lg font-semibold text-dark">
           Kontaktai
         </h2>
 
-        <p className="text-sm text-gray-700 ui-font">
-          📞 {venue.phone || "Nenurodytas"} <br />
-          📧 {venue.email || "Nenurodytas"}
+        <p className="ui-font text-sm text-gray-700">
+          Telefonas: {venue.phone || "Nenurodytas"} <br />
+          El. paštas: {venue.email || "Nenurodytas"}
         </p>
 
         {venue.website && (
@@ -70,10 +93,30 @@ export default function RoomInfo({ room, venue }) {
             href={venue.website}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary hover:underline text-sm ui-font"
+            className="ui-font text-sm text-primary hover:underline"
           >
-            🌐 Svetainė
+            Svetainė
           </a>
+        )}
+      </div>
+
+      <div className="space-y-1">
+        <h2 className="ui-font mb-1 text-lg font-semibold text-dark">
+          Darbo laikas
+        </h2>
+
+        {availabilityLines.length > 0 ? (
+          <div className="space-y-1">
+            {availabilityLines.map((line) => (
+              <p key={line} className="ui-font text-sm text-gray-700">
+                {line}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="ui-font text-sm text-gray-700">
+            Darbo laikas nenurodytas.
+          </p>
         )}
       </div>
     </div>

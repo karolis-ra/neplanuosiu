@@ -6,10 +6,12 @@ import { supabase } from "../lib/supabaseClient";
 
 export default function RegisterPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   async function handleRegister(e) {
@@ -17,23 +19,65 @@ export default function RegisterPage() {
     setErrorMsg("");
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-      },
-    });
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+        },
+      });
 
-    setLoading(false);
+      if (error) {
+        setErrorMsg(error.message);
+        return;
+      }
 
-    if (error) {
-      setErrorMsg(error.message);
-      return;
+      const createdUser = data?.user;
+
+      if (createdUser?.id) {
+        const { error: upsertError } = await supabase.from("users").upsert(
+          {
+            id: createdUser.id,
+            email: createdUser.email || email || null,
+            full_name: fullName || null,
+          },
+          { onConflict: "id" },
+        );
+
+        if (upsertError) {
+          console.error(
+            "users upsert after register error:",
+            upsertError.message,
+          );
+        }
+      }
+
+      router.push("/prisijungti?next=/paskyros-tipas");
+    } catch (e) {
+      console.error("register error:", e);
+      setErrorMsg("Nepavyko sukurti paskyros. Bandykite dar kartą.");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    // čia gali būti email confirm, bet paprastai:
-    router.push("/prisijungti");
+  async function handleGoogleRegister() {
+    setErrorMsg("");
+    setGoogleLoading(true);
+
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/prisijungti?next=${encodeURIComponent("/paskyros-tipas")}`,
+        },
+      });
+    } catch (e) {
+      console.error("google auth error:", e);
+      setErrorMsg("Nepavyko prisijungti su Google.");
+      setGoogleLoading(false);
+    }
   }
 
   return (
@@ -90,12 +134,22 @@ export default function RegisterPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || googleLoading}
           className="ui-font w-full rounded-xl bg-primary py-2 text-lg font-semibold text-white shadow-md hover:bg-dark disabled:bg-slate-300"
         >
           {loading ? "Kuriama..." : "Sukurti paskyrą"}
         </button>
       </form>
+
+      <button
+        type="button"
+        onClick={handleGoogleRegister}
+        disabled={loading || googleLoading}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2 text-lg ui-font hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+      >
+        <img src="/icons/google.png" alt="Google icon" className="w-5 h-5" />
+        {googleLoading ? "Jungiama..." : "Tęsti su Google"}
+      </button>
 
       <p className="ui-font mt-3 text-center text-sm text-slate-600">
         Jau turite paskyrą?{" "}

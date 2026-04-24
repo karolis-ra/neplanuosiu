@@ -1,4 +1,3 @@
-// app/account/page.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,12 +9,46 @@ import Loader from "../components/Loader";
 
 function canCancelBooking(booking) {
   if (!booking.event_date || !booking.start_time) return false;
+  if (booking.status === "cancelled" || booking.status === "rejected") {
+    return false;
+  }
+
   const [h, m] = booking.start_time.split(":").map(Number);
   const eventDate = new Date(booking.event_date);
   eventDate.setHours(h || 0, m || 0, 0, 0);
   const diffMs = eventDate.getTime() - Date.now();
   const hours = diffMs / (1000 * 60 * 60);
   return hours >= 48;
+}
+
+function getBookingStatusLabel(status) {
+  switch (status) {
+    case "pending":
+      return "Laukiama patvirtinimo";
+    case "confirmed":
+      return "Patvirtinta";
+    case "rejected":
+      return "Atmesta";
+    case "cancelled":
+      return "Atšaukta";
+    default:
+      return status || "Nežinoma";
+  }
+}
+
+function getBookingStatusClassName(status) {
+  switch (status) {
+    case "pending":
+      return "bg-amber-100 text-amber-700";
+    case "confirmed":
+      return "bg-green-100 text-green-700";
+    case "rejected":
+      return "bg-red-100 text-red-700";
+    case "cancelled":
+      return "bg-slate-200 text-slate-600";
+    default:
+      return "bg-slate-100 text-slate-600";
+  }
 }
 
 export default function AccountPage() {
@@ -32,7 +65,7 @@ export default function AccountPage() {
 
     const { error } = await supabase.from("favorite_rooms").insert({
       user_id: userId,
-      room_id: pendingId, // svarbu: jokio Number(), jei room_id yra UUID
+      room_id: pendingId,
     });
 
     if (error) {
@@ -43,11 +76,15 @@ export default function AccountPage() {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadData = async () => {
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
+
+      if (!isMounted) return;
 
       if (userError) {
         console.error("auth error:", userError.message);
@@ -61,6 +98,25 @@ export default function AccountPage() {
       try {
         setLoading(true);
 
+        const { data: userRow, error: userRowError } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!isMounted) return;
+
+        if (userRowError) {
+          console.error("user role error:", userRowError.message);
+        }
+
+        const role = userRow?.role || "client";
+
+        if (role === "venue_owner" || role === "service_provider") {
+          router.replace("/partner");
+          return;
+        }
+
         await insertPendingFavoriteIfAny(user.id);
 
         const { data: favorites, error: favoritesError } = await supabase
@@ -68,6 +124,8 @@ export default function AccountPage() {
           .select("room_id, created_at")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
+
+        if (!isMounted) return;
 
         if (favoritesError) {
           console.error("favorites error:", favoritesError.message);
@@ -79,7 +137,7 @@ export default function AccountPage() {
           const { data: roomsData, error: roomsError } = await supabase
             .from("rooms")
             .select(
-              "id, venue_id, name, description, price, capacity, city, is_listed"
+              "id, venue_id, name, description, price, capacity, city, is_listed",
             )
             .in("id", roomIds)
             .eq("is_listed", true);
@@ -92,6 +150,8 @@ export default function AccountPage() {
                 supabase,
                 rooms: roomsData || [],
               })) || [];
+
+            if (!isMounted) return;
             setRooms(roomsWithImages);
           }
         } else {
@@ -104,6 +164,7 @@ export default function AccountPage() {
             `
             id,
             room_id,
+            status,
             event_date,
             start_time,
             end_time,
@@ -120,11 +181,13 @@ export default function AccountPage() {
                 city
               )
             )
-          `
+          `,
           )
           .eq("user_id", user.id)
           .order("event_date", { ascending: true })
           .order("start_time", { ascending: true });
+
+        if (!isMounted) return;
 
         if (bookingsError) {
           console.error("bookings error:", bookingsError.message);
@@ -132,11 +195,17 @@ export default function AccountPage() {
           setBookings(bookingsData || []);
         }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   const handleFavoriteChange = (roomId, isFavorite) => {
@@ -151,7 +220,7 @@ export default function AccountPage() {
 
     if (!canCancelBooking(booking)) {
       alert(
-        "Šios rezervacijos atšaukti nebegalima, nes liko mažiau nei 48 valandos iki šventės pradžios."
+        "Šios rezervacijos atšaukti nebegalima, nes liko mažiau nei 48 valandos iki šventės pradžios.",
       );
       return;
     }
@@ -161,7 +230,7 @@ export default function AccountPage() {
 
     const { error } = await supabase
       .from("bookings")
-      .delete()
+      .update({ status: "cancelled" })
       .eq("id", bookingId);
 
     if (error) {
@@ -170,7 +239,9 @@ export default function AccountPage() {
       return;
     }
 
-    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    setBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, status: "cancelled" } : b)),
+    );
   };
 
   if (loading) {
@@ -237,7 +308,7 @@ export default function AccountPage() {
         {bookings.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
             <p className="text-sm text-slate-600 ui-font">
-              Šiuo metu neturite aktyvių rezervacijų.
+              Šiuo metu neturite rezervacijų.
             </p>
           </div>
         ) : (
@@ -256,13 +327,24 @@ export default function AccountPage() {
                   className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm md:flex-row md:items-center md:justify-between"
                 >
                   <div className="space-y-1">
-                    <p className="ui-font font-semibold text-slate-800">
-                      {room.name || "Kambarys"}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="ui-font font-semibold text-slate-800">
+                        {room.name || "Kambarys"}
+                      </p>
+                      <span
+                        className={`ui-font inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${getBookingStatusClassName(
+                          b.status,
+                        )}`}
+                      >
+                        {getBookingStatusLabel(b.status)}
+                      </span>
+                    </div>
+
                     <p className="ui-font text-xs text-slate-600">
                       {eventDate} {startTime}
                       {endTime && `–${endTime}`}
                     </p>
+
                     <p className="ui-font text-xs text-slate-500">
                       {venue.name && <span>{venue.name}</span>}
                       {venue.address && (
@@ -278,6 +360,7 @@ export default function AccountPage() {
                         </span>
                       )}
                     </p>
+
                     {(b.num_children || b.num_adults) && (
                       <p className="ui-font text-[11px] text-slate-500">
                         Vaikai: {b.num_children || 0} • Suaugę:{" "}
@@ -287,21 +370,26 @@ export default function AccountPage() {
                   </div>
 
                   <div className="mt-2 flex items-center gap-2 md:mt-0 md:flex-col md:items-end">
-                    <button
-                      type="button"
-                      onClick={() => handleCancelBooking(b.id)}
-                      disabled={!canCancel}
-                      className="ui-font inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-medium transition
-                        disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300
-                        border-red-300 text-red-600 hover:border-red-500 hover:text-red-700"
-                    >
-                      Atšaukti rezervaciją
-                    </button>
-                    {!canCancel && (
-                      <span className="ui-font text-[10px] text-slate-400">
-                        Atšaukimas galimas tik likus ≥ 48 val.
-                      </span>
+                    {b.status !== "cancelled" && b.status !== "rejected" && (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelBooking(b.id)}
+                        disabled={!canCancel}
+                        className="ui-font inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-medium transition
+                          disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300
+                          border-red-300 text-red-600 hover:border-red-500 hover:text-red-700"
+                      >
+                        Atšaukti rezervaciją
+                      </button>
                     )}
+
+                    {!canCancel &&
+                      b.status !== "cancelled" &&
+                      b.status !== "rejected" && (
+                        <span className="ui-font text-[10px] text-slate-400">
+                          Atšaukimas galimas tik likus ≥ 48 val.
+                        </span>
+                      )}
                   </div>
                 </div>
               );

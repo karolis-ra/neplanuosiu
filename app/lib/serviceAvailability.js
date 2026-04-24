@@ -79,9 +79,7 @@ export function isProviderAvailableForReservation({
 
   const hasBookingConflict = (providerBookings || []).some((item) => {
     if (item.event_date !== eventDate) return false;
-
-    const status = item.status;
-    if (status && status === "cancelled") return false;
+    if (item.status && item.status === "cancelled") return false;
 
     const itemStart = timeToMinutes(item.start_time);
     const itemEnd = timeToMinutes(item.end_time);

@@ -44,7 +44,7 @@ export default function BookingActionButtons({
           type="button"
           disabled={disabled}
           onClick={() => router.push(`/rezervacija?${params}`)}
-          className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] border border-primary bg-white px-[18px] text-[15px] font-semibold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
         >
           Rezervuoti tik kambarį
         </button>
@@ -53,7 +53,7 @@ export default function BookingActionButtons({
           type="button"
           disabled={disabled}
           onClick={() => router.push(`/rezervacija/paslaugos?${params}`)}
-          className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] border border-primary bg-white px-[18px] text-[15px] font-semibold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+          className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           Užsakyti papildomas paslaugas
         </button>

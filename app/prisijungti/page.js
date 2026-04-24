@@ -1,15 +1,75 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
+
+function resolveRouteByRole(role, fallbackPath = "/account") {
+  if (!role) {
+    return "/paskyros-tipas";
+  }
+
+  if (role === "client") {
+    return fallbackPath === "/partner" ? "/account" : fallbackPath;
+  }
+
+  if (role === "venue_owner" || role === "service_provider") {
+    return "/partner";
+  }
+
+  return "/account";
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const nextPath = useMemo(() => {
+    return searchParams.get("next") || "/account";
+  }, [searchParams]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function handleOAuthReturn() {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (!isMounted) return;
+      if (error || !user) return;
+
+      const { data: userRow, error: userRowError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      if (userRowError) {
+        console.error("users fetch after oauth error:", userRowError.message);
+      }
+
+      const role = userRow?.role || null;
+      const targetPath = resolveRouteByRole(role, nextPath);
+
+      router.replace(targetPath);
+    }
+
+    handleOAuthReturn();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router, nextPath]);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -28,14 +88,37 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/account");
+    const user = data?.user;
+
+    if (!user) {
+      router.push("/account");
+      return;
+    }
+
+    const { data: userRow, error: userRowError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (userRowError) {
+      console.error("users fetch after login error:", userRowError.message);
+    }
+
+    const role = userRow?.role || null;
+    const targetPath = resolveRouteByRole(role, nextPath);
+
+    router.push(targetPath);
   }
 
   async function handleGoogleLogin() {
+    setErrorMsg("");
+    setGoogleLoading(true);
+
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/account`,
+        redirectTo: `${window.location.origin}/prisijungti?next=${encodeURIComponent(nextPath)}`,
       },
     });
   }
@@ -83,7 +166,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || googleLoading}
           className="ui-font w-full rounded-xl bg-primary py-2 text-md font-semibold text-white shadow-md hover:bg-dark disabled:bg-slate-300"
         >
           {loading ? "Jungiama..." : "Prisijungti"}
@@ -93,10 +176,11 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={handleGoogleLogin}
-        className="w-full rounded-xl mt-3 border border-slate-200 py-2 text-md ui-font hover:bg-slate-50 flex items-center justify-center gap-2"
+        disabled={loading || googleLoading}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2 text-md ui-font hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
       >
         <img src="/icons/google.png" alt="Google icon" className="w-5 h-5" />
-        Prisijungti su Google
+        {googleLoading ? "Jungiama..." : "Prisijungti su Google"}
       </button>
 
       <p className="ui-font mt-3 text-center text-sm text-slate-600">

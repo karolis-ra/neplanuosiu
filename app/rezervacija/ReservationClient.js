@@ -5,19 +5,24 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 
 function parseTimeToMinutes(timeStr) {
-  const normalized = String(timeStr).slice(0, 5);
+  const normalized = String(timeStr || "").slice(0, 5);
   const [h, m] = normalized.split(":").map(Number);
-  return h * 60 + m;
+  return (h || 0) * 60 + (m || 0);
 }
 
 function minutesToTimeStr(mins) {
-  const h = String(Math.floor(mins / 60)).padStart(2, "0");
-  const m = String(mins % 60).padStart(2, "0");
+  const safeMinutes = Number.isFinite(mins) ? mins : 0;
+  const h = String(Math.floor(safeMinutes / 60)).padStart(2, "0");
+  const m = String(safeMinutes % 60).padStart(2, "0");
   return `${h}:${m}`;
 }
 
 function formatPrice(value) {
   return `${Number(value || 0).toFixed(2)} €`;
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
 export default function ReservationClient() {
@@ -56,15 +61,20 @@ export default function ReservationClient() {
   const [room, setRoom] = useState(null);
   const [venue, setVenue] = useState(null);
   const [selectedServices, setSelectedServices] = useState([]);
+
   const [numChildren, setNumChildren] = useState("");
   const [numAdults, setNumAdults] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [sessionUser, setSessionUser] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [successBookingId, setSuccessBookingId] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -76,30 +86,41 @@ export default function ReservationClient() {
   useEffect(() => {
     if (!roomId) return;
 
-    (async () => {
+    let isMounted = true;
+
+    async function loadReservationData() {
       try {
         setLoading(true);
         setError(null);
 
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
 
+        const user = session?.user || null;
+
+        if (!isMounted) return;
+
+        setSessionUser(user);
         setIsLoggedIn(Boolean(user));
 
         if (user) {
           setGuestEmail(user.email || "");
           setGuestName(user.user_metadata?.full_name || "");
 
-          const { data: userRow } = await supabase
+          const { data: userRow, error: userRowError } = await supabase
             .from("users")
             .select("phone, full_name")
             .eq("id", user.id)
             .single();
 
-          if (userRow?.phone) setPhone(userRow.phone);
-          if (userRow?.full_name && !user.user_metadata?.full_name) {
-            setGuestName(userRow.full_name);
+          if (!isMounted) return;
+
+          if (!userRowError && userRow) {
+            if (userRow.phone) setPhone(userRow.phone);
+            if (userRow.full_name && !user.user_metadata?.full_name) {
+              setGuestName(userRow.full_name);
+            }
           }
         }
 
@@ -110,73 +131,124 @@ export default function ReservationClient() {
           .single();
 
         if (roomError) throw roomError;
+        if (!isMounted) return;
+
         setRoom(roomData);
 
-        if (roomData.venue_id) {
-          const { data: venueData } = await supabase
+        if (roomData?.venue_id) {
+          const { data: venueData, error: venueError } = await supabase
             .from("venues")
-            .select("id, name, address, city, phone, email")
+            .select("id, name, address, city, phone, email, owner_id")
             .eq("id", roomData.venue_id)
             .single();
+
+          if (venueError) throw venueError;
+          if (!isMounted) return;
+
           setVenue(venueData || null);
+        } else {
+          setVenue(null);
         }
 
         if (selectedServiceIds.length > 0) {
           const { data: serviceRows, error: servicesError } = await supabase
             .from("services")
-            .select("id, name, service_type, price_per_unit, units_of_measure")
+            .select(
+              "id, provider_id, venue_id, room_id, is_global, name, service_type, price_per_unit, units_of_measure",
+            )
             .in("id", selectedServiceIds);
 
           if (servicesError) throw servicesError;
+          if (!isMounted) return;
+
           setSelectedServices(serviceRows || []);
         } else {
           setSelectedServices([]);
         }
       } catch (e) {
         console.error("load reservation page error:", e);
+        if (!isMounted) return;
         setError("Nepavyko užkrauti rezervacijos informacijos.");
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-    })();
+    }
+
+    loadReservationData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [roomId, selectedServiceIds]);
+
+  async function rollbackBooking(bookingId) {
+    if (!bookingId) return;
+
+    const { error: rollbackError } = await supabase
+      .from("bookings")
+      .delete()
+      .eq("id", bookingId);
+
+    if (rollbackError) {
+      console.error("booking rollback error:", rollbackError);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
+
     if (!roomId || !date || !time) return;
 
-    if (!guestName.trim()) {
+    const trimmedGuestName = guestName.trim();
+    const trimmedGuestEmail = guestEmail.trim();
+    const trimmedPhone = phone.trim();
+    const trimmedNote = note.trim();
+
+    if (!trimmedGuestName) {
       setError("Įveskite vardą ir pavardę.");
       return;
     }
 
-    if (!guestEmail.trim()) {
+    if (!trimmedGuestEmail) {
       setError("Įveskite el. paštą.");
       return;
     }
 
-    if (!phone.trim()) {
+    if (!isValidEmail(trimmedGuestEmail)) {
+      setError("Įveskite teisingą el. pašto adresą.");
+      return;
+    }
+
+    if (!trimmedPhone) {
       setError("Įveskite telefono numerį.");
+      return;
+    }
+
+    if (!room?.venue_id) {
+      setError("Nepavyko nustatyti venue informacijos.");
       return;
     }
 
     setSubmitting(true);
     setError(null);
 
+    let insertedBookingId = null;
+
     try {
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (userError) throw userError;
+      const user = session?.user || null;
 
       if (user) {
         const userRow = {
           id: user.id,
-          email: user.email || guestEmail || null,
-          full_name: guestName || user.user_metadata?.full_name || null,
-          phone: phone || null,
+          email: user.email || trimmedGuestEmail || null,
+          full_name: trimmedGuestName || user.user_metadata?.full_name || null,
+          phone: trimmedPhone || null,
         };
 
         const { error: upsertError } = await supabase
@@ -195,15 +267,15 @@ export default function ReservationClient() {
       const bookingPayload = {
         room_id: roomId,
         user_id: user?.id || null,
-        guest_name: guestName,
-        guest_email: guestEmail,
-        guest_phone: phone,
+        guest_name: trimmedGuestName,
+        guest_email: trimmedGuestEmail,
+        guest_phone: trimmedPhone,
         event_date: date,
         start_time: time,
         end_time: endTime,
         num_children: numChildren ? Number(numChildren) : null,
         num_adults: numAdults ? Number(numAdults) : null,
-        note: note || null,
+        note: trimmedNote || null,
         base_price: basePrice || null,
         extra_hours: extraHours || 0,
         extra_hour_price: extraHourPrice || 0,
@@ -213,6 +285,7 @@ export default function ReservationClient() {
         base_duration_minutes: baseDurationMinutes || null,
         extra_minutes: extraMinutes || 0,
         booking_source: "web",
+        status: "pending",
       };
 
       const { data: insertedBooking, error: insertError } = await supabase
@@ -226,14 +299,16 @@ export default function ReservationClient() {
         setError(
           insertError.message ||
             insertError.details ||
-            JSON.stringify(insertError, null, 2),
+            "Nepavyko išsaugoti rezervacijos.",
         );
         return;
       }
 
+      insertedBookingId = insertedBooking.id;
+
       if (selectedServices.length > 0) {
         const bookingServicesPayload = selectedServices.map((item) => ({
-          booking_id: insertedBooking.id,
+          booking_id: insertedBookingId,
           service_id: item.id,
           quantity: 1,
           price_per_unit: item.price_per_unit || 0,
@@ -248,7 +323,50 @@ export default function ReservationClient() {
 
         if (bookingServicesError) {
           console.error("booking services insert error:", bookingServicesError);
+          await rollbackBooking(insertedBookingId);
           setError("Nepavyko išsaugoti pasirinktų paslaugų.");
+          return;
+        }
+      }
+
+      const approvalRows = [
+        {
+          booking_id: insertedBookingId,
+          approval_type: "venue",
+          venue_id: room.venue_id,
+          provider_id: null,
+          service_id: null,
+          status: "pending",
+        },
+      ];
+
+      const externalServices = selectedServices.filter((service) => {
+        const isVenueOwned =
+          service.venue_id === room.venue_id || service.room_id === roomId;
+
+        return !isVenueOwned;
+      });
+
+      externalServices.forEach((service) => {
+        approvalRows.push({
+          booking_id: insertedBookingId,
+          approval_type: "service",
+          venue_id: null,
+          provider_id: service.provider_id,
+          service_id: service.id,
+          status: "pending",
+        });
+      });
+
+      if (approvalRows.length > 0) {
+        const { error: approvalsError } = await supabase
+          .from("booking_approvals")
+          .insert(approvalRows);
+
+        if (approvalsError) {
+          console.error("booking approvals insert error:", approvalsError);
+          await rollbackBooking(insertedBookingId);
+          setError("Nepavyko sukurti rezervacijos patvirtinimo įrašų.");
           return;
         }
       }
@@ -258,14 +376,24 @@ export default function ReservationClient() {
         return;
       }
 
-      router.push("/");
+      setSuccessBookingId(insertedBookingId);
     } catch (e) {
       console.error("handleSubmit error:", e);
+
+      if (insertedBookingId) {
+        await rollbackBooking(insertedBookingId);
+      }
+
       setError("Nepavyko išsaugoti rezervacijos. Bandykite dar kartą.");
     } finally {
       setSubmitting(false);
     }
   }
+
+  const endTimeLabel =
+    time && durationMinutes
+      ? minutesToTimeStr(parseTimeToMinutes(time) + durationMinutes)
+      : null;
 
   if (loading) {
     return (
@@ -275,10 +403,92 @@ export default function ReservationClient() {
     );
   }
 
-  const endTimeLabel =
-    time && durationMinutes
-      ? minutesToTimeStr(parseTimeToMinutes(time) + durationMinutes)
-      : null;
+  if (successBookingId && !sessionUser) {
+    return (
+      <main className="mx-auto max-w-[900px] px-[16px] py-[32px]">
+        <section className="rounded-[28px] bg-white p-[24px] shadow-sm">
+          <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+            Rezervacijos užklausa pateikta
+          </p>
+
+          <h1 className="mt-[8px] ui-font text-[28px] font-semibold text-slate-900">
+            Ačiū, rezervacijos užklausa sėkmingai pateikta
+          </h1>
+
+          <p className="mt-[12px] ui-font text-[14px] leading-[22px] text-slate-600">
+            Jūsų užklausa perduota patvirtinimui. Su jumis bus susisiekta pagal
+            pateiktus kontaktinius duomenis.
+          </p>
+
+          <div className="mt-[20px] rounded-[20px] bg-slate-50 p-[16px]">
+            <div className="space-y-[8px]">
+              <div className="flex items-start justify-between gap-[10px]">
+                <span className="ui-font text-[13px] text-slate-500">
+                  Kambarys
+                </span>
+                <span className="ui-font text-right text-[13px] font-semibold text-slate-800">
+                  {room?.name || "-"}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-[10px]">
+                <span className="ui-font text-[13px] text-slate-500">Data</span>
+                <span className="ui-font text-right text-[13px] font-semibold text-slate-800">
+                  {date}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-[10px]">
+                <span className="ui-font text-[13px] text-slate-500">
+                  Laikas
+                </span>
+                <span className="ui-font text-right text-[13px] font-semibold text-slate-800">
+                  {time}
+                  {endTimeLabel ? ` - ${endTimeLabel}` : ""}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-[10px]">
+                <span className="ui-font text-[13px] text-slate-500">
+                  Būsena
+                </span>
+                <span className="ui-font text-right text-[13px] font-semibold text-amber-600">
+                  Laukiama patvirtinimo
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-[10px]">
+                <span className="ui-font text-[13px] text-slate-500">
+                  Iš viso
+                </span>
+                <span className="ui-font text-right text-[13px] font-semibold text-primary">
+                  {formatPrice(grandTotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-[20px] flex flex-col gap-[12px] sm:flex-row">
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
+            >
+              Grįžti į pradžią
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/registracija")}
+              className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Susikurti paskyrą
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-[1100px] px-[16px] py-[32px]">
@@ -293,8 +503,8 @@ export default function ReservationClient() {
             </h1>
             <p className="ui-font text-[14px] leading-[22px] text-slate-600">
               {isLoggedIn
-                ? "Patikrinkite informaciją ir patvirtinkite rezervaciją."
-                : "Rezervaciją galite pateikti ir be paskyros. Įveskite kontaktinius duomenis ir patvirtinkite užsakymą."}
+                ? "Patikrinkite informaciją ir pateikite rezervacijos užklausą."
+                : "Rezervaciją galite pateikti ir be paskyros. Įveskite kontaktinius duomenis ir pateikite užklausą."}
             </p>
           </div>
 
@@ -390,7 +600,7 @@ export default function ReservationClient() {
               disabled={submitting}
               className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {submitting ? "Saugoma..." : "Patvirtinti rezervaciją"}
+              {submitting ? "Saugoma..." : "Pateikti rezervacijos užklausą"}
             </button>
           </form>
         </section>
@@ -431,6 +641,14 @@ export default function ReservationClient() {
                   <span className="ui-font text-right text-[13px] font-semibold text-slate-800">
                     {time}
                     {endTimeLabel ? ` - ${endTimeLabel}` : ""}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-[10px]">
+                  <span className="ui-font text-[13px] text-slate-500">
+                    Būsena
+                  </span>
+                  <span className="ui-font text-right text-[13px] font-semibold text-amber-600">
+                    Laukiama patvirtinimo
                   </span>
                 </div>
               </div>
