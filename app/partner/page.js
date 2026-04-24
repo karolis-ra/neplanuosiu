@@ -10,8 +10,6 @@ export default function PartnerPage() {
 
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-
-  const [role, setRole] = useState("");
   const [venue, setVenue] = useState(null);
   const [serviceProvider, setServiceProvider] = useState(null);
 
@@ -38,7 +36,7 @@ export default function PartnerPage() {
 
         const { data: userRow, error: userError } = await supabase
           .from("users")
-          .select("role, full_name, email")
+          .select("role")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -49,7 +47,6 @@ export default function PartnerPage() {
         }
 
         const currentRole = userRow?.role || "";
-        setRole(currentRole);
 
         if (!currentRole || currentRole === "client") {
           router.replace("/paskyros-tipas");
@@ -58,7 +55,7 @@ export default function PartnerPage() {
 
         const { data: venueRow, error: venueError } = await supabase
           .from("venues")
-          .select("id, name, city, is_published")
+          .select("id, name, city")
           .eq("owner_id", user.id)
           .limit(1)
           .maybeSingle();
@@ -73,7 +70,7 @@ export default function PartnerPage() {
 
         const { data: providerRow, error: providerError } = await supabase
           .from("service_providers")
-          .select("id, name, city, is_published")
+          .select("id, name, city")
           .eq("owner_id", user.id)
           .limit(1)
           .maybeSingle();
@@ -85,8 +82,8 @@ export default function PartnerPage() {
         }
 
         setServiceProvider(providerRow || null);
-      } catch (e) {
-        console.error("partner page load error:", e);
+      } catch (error) {
+        console.error("partner page load error:", error);
         if (isMounted) {
           setErrorMsg("Nepavyko užkrauti partnerio paskyros.");
         }
@@ -118,7 +115,7 @@ export default function PartnerPage() {
           Partnerio valdymas
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Čia valdysite savo objektus, paslaugas ir rezervacijų užklausas.
+          Čia valdysite savo erdves, paslaugas ir rezervacijų užklausas.
         </p>
       </div>
 
@@ -130,20 +127,14 @@ export default function PartnerPage() {
 
       <section className="grid gap-[20px] md:grid-cols-2">
         <article className="rounded-[28px] bg-white p-[24px] shadow-sm">
-          <div className="flex items-start justify-between gap-[12px]">
-            <div>
-              <h2 className="ui-font text-[22px] font-semibold text-slate-900">
-                Venue
-              </h2>
-              <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
-                Valdykite venue informaciją, kambarius ir su jais susijusias
-                užklausas.
-              </p>
-            </div>
-
-            <span className="ui-font rounded-full bg-slate-100 px-[12px] py-[6px] text-[12px] font-medium text-slate-600">
-              {venue ? "Sukurta" : "Nesukurta"}
-            </span>
+          <div>
+            <h2 className="ui-font text-[22px] font-semibold text-slate-900">
+              Žaidimų erdvė
+            </h2>
+            <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
+              Valdykite žaidimų erdvės informaciją, kambarius ir su jais
+              susijusias užklausas.
+            </p>
           </div>
 
           {venue ? (
@@ -154,17 +145,11 @@ export default function PartnerPage() {
               <p className="mt-[4px] ui-font text-[13px] text-slate-500">
                 {venue.city || "Miestas nenurodytas"}
               </p>
-              <p className="mt-[10px] ui-font text-[13px] text-slate-600">
-                Būsena:{" "}
-                <span className="font-semibold">
-                  {venue.is_published ? "Paskelbta" : "Juodraštis"}
-                </span>
-              </p>
             </div>
           ) : (
             <div className="mt-[18px] rounded-[20px] bg-slate-50 p-[16px]">
               <p className="ui-font text-[14px] leading-[22px] text-slate-600">
-                Dar nesukūrėte venue profilio.
+                Dar nesukūrėte žaidimų erdvės profilio.
               </p>
             </div>
           )}
@@ -176,7 +161,7 @@ export default function PartnerPage() {
                 onClick={() => router.push("/partner/onboarding/venue")}
                 className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
               >
-                Kurti venue
+                Kurti žaidimų erdvę
               </button>
             ) : (
               <>
@@ -185,7 +170,7 @@ export default function PartnerPage() {
                   onClick={() => router.push("/partner/venue")}
                   className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
                 >
-                  Valdyti venue
+                  Valdyti žaidimų erdvę
                 </button>
 
                 <button
@@ -201,19 +186,13 @@ export default function PartnerPage() {
         </article>
 
         <article className="rounded-[28px] bg-white p-[24px] shadow-sm">
-          <div className="flex items-start justify-between gap-[12px]">
-            <div>
-              <h2 className="ui-font text-[22px] font-semibold text-slate-900">
-                Paslaugos
-              </h2>
-              <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
-                Valdykite papildomas paslaugas, jų prieinamumą ir užklausas.
-              </p>
-            </div>
-
-            <span className="ui-font rounded-full bg-slate-100 px-[12px] py-[6px] text-[12px] font-medium text-slate-600">
-              {serviceProvider ? "Sukurta" : "Nesukurta"}
-            </span>
+          <div>
+            <h2 className="ui-font text-[22px] font-semibold text-slate-900">
+              Paslaugos
+            </h2>
+            <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
+              Valdykite papildomas paslaugas, jų prieinamumą ir užklausas.
+            </p>
           </div>
 
           {serviceProvider ? (
@@ -223,12 +202,6 @@ export default function PartnerPage() {
               </p>
               <p className="mt-[4px] ui-font text-[13px] text-slate-500">
                 {serviceProvider.city || "Miestas nenurodytas"}
-              </p>
-              <p className="mt-[10px] ui-font text-[13px] text-slate-600">
-                Būsena:{" "}
-                <span className="font-semibold">
-                  {serviceProvider.is_published ? "Paskelbta" : "Juodraštis"}
-                </span>
               </p>
             </div>
           ) : (

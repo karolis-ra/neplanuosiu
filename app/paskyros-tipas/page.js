@@ -10,22 +10,22 @@ const accountTypes = [
     id: "client",
     title: "Klientas",
     description:
-      "Ieškokite žaidimų kambarių, rinkitės papildomas paslaugas ir teikite rezervacijos užklausas.",
-    buttonLabel: "Tęsti kaip klientui",
+      "Ieskokite zaidimu kambariu, rinkites papildomas paslaugas ir teikite rezervacijos uzklausas.",
+    buttonLabel: "Testi kaip klientui",
   },
   {
     id: "venue_owner",
-    title: "Venue owner",
+    title: "Zaidimu erdves valdytojas",
     description:
-      "Talpinkite savo venue, kambarius, valdykite rezervacijų užklausas ir siūlykite papildomas paslaugas.",
-    buttonLabel: "Tęsti kaip venue owner",
+      "Kurti savo zaidimu erdve, valdyti kambarius, perziureti rezervaciju uzklausas ir siulyti papildomas paslaugas.",
+    buttonLabel: "Testi kaip erdves valdytojui",
   },
   {
     id: "service_provider",
-    title: "Paslaugų teikėjas",
+    title: "Paslaugu teikejas",
     description:
-      "Kurti savo paslaugas, valdyti darbo laiką ir tvirtinti su paslaugomis susijusias užklausas.",
-    buttonLabel: "Tęsti kaip paslaugų teikėjui",
+      "Kurti savo paslaugas, valdyti darbo laika ir tvirtinti su paslaugomis susijusias uzklausas.",
+    buttonLabel: "Testi kaip paslaugu teikejui",
   },
 ];
 
@@ -147,7 +147,7 @@ export default function AccountTypePage() {
     } catch (e) {
       console.error("account type save error:", e);
       setError(
-        e?.message || "Nepavyko išsaugoti paskyros tipo. Bandykite dar kartą.",
+        e?.message || "Nepavyko issaugoti paskyros tipo. Bandykite dar karta.",
       );
       setSavingType("");
     }
@@ -167,7 +167,7 @@ export default function AccountTypePage() {
           Pasirinkite, kaip norite naudotis platforma
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Šį pasirinkimą vėliau galėsime plėsti ir pritaikyti pagal jūsų rolę.
+          Si pasirinkima veliau galesime plesti ir pritaikyti pagal jusu role.
         </p>
       </div>
 

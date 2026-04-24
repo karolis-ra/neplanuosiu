@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function BookingActionButtons({
   roomId,
@@ -12,6 +13,34 @@ export default function BookingActionButtons({
   totalPrice,
 }) {
   const router = useRouter();
+  const [userRole, setUserRole] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadRole() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isMounted || !user) return;
+
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+      setUserRole(userRow?.role || "");
+    }
+
+    loadRole();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const params = useMemo(() => {
     const query = new URLSearchParams();
@@ -35,34 +64,42 @@ export default function BookingActionButtons({
     totalPrice,
   ]);
 
-  const disabled = !roomId || !selectedDate || !selectedTime;
+  const bookingDisabled =
+    !roomId || !selectedDate || !selectedTime || userRole === "venue_owner";
 
   return (
     <div className="space-y-[12px]">
       <div className="grid gap-[10px] sm:grid-cols-2">
         <button
           type="button"
-          disabled={disabled}
+          disabled={bookingDisabled}
           onClick={() => router.push(`/rezervacija?${params}`)}
           className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] border border-primary bg-white px-[18px] text-[15px] font-semibold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
         >
-          Rezervuoti tik kambarį
+          Rezervuoti tik kambari
         </button>
 
         <button
           type="button"
-          disabled={disabled}
+          disabled={bookingDisabled}
           onClick={() => router.push(`/rezervacija/paslaugos?${params}`)}
           className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          Užsakyti papildomas paslaugas
+          Uzsakyti papildomas paslaugas
         </button>
       </div>
 
-      <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
-        Galite pasirinkti papildomas paslaugas: dekoracijas, animatorių ar tortą
-        pagal pasirinktą rezervacijos laiką.
-      </p>
+      {userRole === "venue_owner" ? (
+        <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
+          Zaidimu erdves valdytojas negali teikti rezervacijos uzklausos is
+          kliento srauto.
+        </p>
+      ) : (
+        <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
+          Galite pasirinkti papildomas paslaugas: dekoracijas, animatoriu ar
+          torta pagal pasirinkta rezervacijos laika.
+        </p>
+      )}
     </div>
   );
 }

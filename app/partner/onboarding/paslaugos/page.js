@@ -73,25 +73,87 @@ export default function ServiceProviderOnboardingPage() {
     };
   }, [router]);
 
+  async function ensurePublicUserRow(user) {
+    const payload = {
+      id: user.id,
+      email: user.email || null,
+      full_name: user.user_metadata?.full_name || null,
+    };
+
+    const { data: existingUser, error: existingUserError } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (existingUserError) {
+      throw existingUserError;
+    }
+
+    if (existingUser?.id) {
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
+          email: payload.email,
+          full_name: payload.full_name,
+        })
+        .eq("id", user.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("users").insert({
+      ...payload,
+      role: "service_provider",
+    });
+
+    if (insertError) {
+      throw insertError;
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setErrorMsg("");
 
     if (!name.trim()) {
-      setErrorMsg("Įveskite paslaugų profilio pavadinimą.");
+      setErrorMsg("Iveskite paslaugu profilio pavadinima.");
       return;
     }
 
     if (!city.trim()) {
-      setErrorMsg("Įveskite miestą.");
+      setErrorMsg("Iveskite miesta.");
       return;
     }
 
     setSubmitting(true);
 
     try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (!user) {
+        router.replace("/prisijungti");
+        return;
+      }
+
+      await ensurePublicUserRow(user);
+
+      const providerId = crypto.randomUUID();
+
       const payload = {
-        owner_id: userId,
+        id: providerId,
+        owner_id: userId || user.id,
         name: name.trim(),
         description: description.trim() || null,
         address: address.trim() || null,
@@ -101,23 +163,29 @@ export default function ServiceProviderOnboardingPage() {
         website: website.trim() || null,
         facebook_url: facebookUrl.trim() || null,
         google_maps_url: googleMapsUrl.trim() || null,
-        is_published: false,
+        is_published: true,
       };
 
-      const { data, error } = await supabase
-        .from("service_providers")
-        .insert(payload)
-        .select("id")
-        .single();
+      const { error } = await supabase.from("service_providers").insert(payload);
 
       if (error) {
         throw error;
       }
 
-      router.push(`/partner/onboarding/paslaugos/${data.id}/pirma-paslauga`);
+      router.push(`/partner/onboarding/paslaugos/${providerId}/pirma-paslauga`);
     } catch (e) {
-      console.error("create service provider error:", e);
-      setErrorMsg("Nepavyko sukurti paslaugų profilio. Bandykite dar kartą.");
+      console.error("create service provider error:", {
+        message: e?.message,
+        details: e?.details,
+        hint: e?.hint,
+        code: e?.code,
+        raw: e,
+      });
+
+      setErrorMsg(
+        e?.message ||
+          "Nepavyko sukurti paslaugu profilio. Bandykite dar karta.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -131,14 +199,14 @@ export default function ServiceProviderOnboardingPage() {
     <main className="mx-auto max-w-[900px] px-[16px] py-[40px]">
       <div className="mb-[24px]">
         <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-          Paslaugų teikėjo onboarding
+          Paslaugu teikejo onboarding
         </p>
         <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-          Sukurkite paslaugų profilį
+          Sukurkite paslaugu profili
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Užpildykite pagrindinę informaciją apie save arba savo veiklą. Kitame
-          žingsnyje pridėsime pirmą paslaugą.
+          Uzpildykite pagrindine informacija apie save arba savo veikla. Kitame
+          zingsnyje pridesime pirma paslauga.
         </p>
       </div>
 
@@ -165,14 +233,14 @@ export default function ServiceProviderOnboardingPage() {
 
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Aprašymas
+              Aprasymas
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
-              placeholder="Trumpai aprašykite savo veiklą."
+              placeholder="Trumpai aprasykite savo veikla."
             />
           </div>
 
@@ -186,7 +254,7 @@ export default function ServiceProviderOnboardingPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-                placeholder="Gatvė, numeris"
+                placeholder="Gatve, numeris"
               />
             </div>
 
@@ -207,7 +275,7 @@ export default function ServiceProviderOnboardingPage() {
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                El. paštas
+                El. pastas
               </label>
               <input
                 type="email"
@@ -235,7 +303,7 @@ export default function ServiceProviderOnboardingPage() {
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Svetainė
+                Svetaine
               </label>
               <input
                 type="text"
@@ -278,7 +346,7 @@ export default function ServiceProviderOnboardingPage() {
             disabled={submitting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {submitting ? "Saugoma..." : "Tęsti ir pridėti paslaugą"}
+            {submitting ? "Saugoma..." : "Testi ir prideti paslauga"}
           </button>
         </form>
       </section>

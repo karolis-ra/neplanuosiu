@@ -105,6 +105,21 @@ export default function ReservationClient() {
         setIsLoggedIn(Boolean(user));
 
         if (user) {
+          const { data: userRoleRow } = await supabase
+            .from("users")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (!isMounted) return;
+
+          if (userRoleRow?.role === "venue_owner") {
+            router.replace("/partner/venue");
+            return;
+          }
+        }
+
+        if (user) {
           setGuestEmail(user.email || "");
           setGuestName(user.user_metadata?.full_name || "");
 
@@ -181,7 +196,7 @@ export default function ReservationClient() {
     return () => {
       isMounted = false;
     };
-  }, [roomId, selectedServiceIds]);
+  }, [roomId, selectedServiceIds, router]);
 
   async function rollbackBooking(bookingId) {
     if (!bookingId) return;

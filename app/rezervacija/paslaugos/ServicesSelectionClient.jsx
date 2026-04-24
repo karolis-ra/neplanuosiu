@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
@@ -30,9 +31,12 @@ function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
     >
       <div className="overflow-hidden bg-slate-100">
         {item.image_url ? (
-          <img
+          <Image
             src={item.image_url}
             alt={item.image_alt || item.name}
+            width={800}
+            height={540}
+            unoptimized
             className="h-[180px] w-full object-cover"
           />
         ) : (
@@ -198,6 +202,23 @@ export default function ServicesSelectionClient() {
       try {
         setLoading(true);
         setError("");
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: userRow } = await supabase
+            .from("users")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (userRow?.role === "venue_owner") {
+            router.replace("/partner/venue");
+            return;
+          }
+        }
 
         const weekday = getWeekdayFromDateString(date);
 
@@ -442,7 +463,7 @@ export default function ServicesSelectionClient() {
         setLoading(false);
       }
     })();
-  }, [roomId, date, time, duration, reservation.endTime]);
+  }, [roomId, date, time, duration, reservation.endTime, router]);
 
   const grouped = useMemo(() => groupServicesByType(services), [services]);
 

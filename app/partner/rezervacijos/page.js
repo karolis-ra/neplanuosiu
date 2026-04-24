@@ -61,8 +61,6 @@ async function recalculateBookingStatus(bookingId) {
     statuses.every((status) => status === "confirmed")
   ) {
     nextBookingStatus = "confirmed";
-  } else {
-    nextBookingStatus = "pending";
   }
 
   const { error: bookingUpdateError } = await supabase
@@ -188,8 +186,8 @@ export default function PartnerReservationsPage() {
         });
 
         setApprovalRows(sortedRows);
-      } catch (e) {
-        console.error("partner reservations load error:", e);
+      } catch (error) {
+        console.error("partner reservations load error:", error);
         if (isMounted) {
           setErrorMsg("Nepavyko užkrauti rezervacijų užklausų.");
         }
@@ -251,20 +249,21 @@ export default function PartnerReservationsPage() {
               : row,
         ),
       );
-    } catch (e) {
-      console.error("update approval status error:", e);
+    } catch (error) {
+      console.error("update approval status error:", error);
       setErrorMsg("Nepavyko atnaujinti rezervacijos būsenos.");
     } finally {
       setProcessingId("");
     }
   }
 
-  const grouped = useMemo(() => {
-    return {
+  const grouped = useMemo(
+    () => ({
       pending: approvalRows.filter((row) => row.status === "pending"),
       processed: approvalRows.filter((row) => row.status !== "pending"),
-    };
-  }, [approvalRows]);
+    }),
+    [approvalRows],
+  );
 
   if (loading) {
     return <Loader />;
@@ -278,7 +277,7 @@ export default function PartnerReservationsPage() {
             Rezervacijų užklausos
           </p>
           <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-            Venue rezervacijos
+            Žaidimų erdvės rezervacijos
           </h1>
           <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
             Peržiūrėkite kliento užklausas ir patvirtinkite arba atmeskite
@@ -286,7 +285,7 @@ export default function PartnerReservationsPage() {
           </p>
           {venue && (
             <p className="mt-[8px] ui-font text-[14px] text-slate-500">
-              Venue: <span className="font-semibold">{venue.name}</span>
+              Erdvė: <span className="font-semibold">{venue.name}</span>
             </p>
           )}
         </div>
@@ -296,7 +295,7 @@ export default function PartnerReservationsPage() {
           onClick={() => router.push("/partner/venue")}
           className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
         >
-          Grįžti į venue valdymą
+          Grįžti į erdvės valdymą
         </button>
       </div>
 
@@ -374,7 +373,7 @@ export default function PartnerReservationsPage() {
 
                           <div className="rounded-[18px] bg-slate-50 p-[12px]">
                             <p className="ui-font text-[12px] text-slate-500">
-                              Sukurta
+                              Pateikta
                             </p>
                             <p className="mt-[4px] ui-font text-[14px] font-semibold text-slate-800">
                               {(booking.created_at || "").slice(0, 10) || "-"}
@@ -394,7 +393,7 @@ export default function PartnerReservationsPage() {
                             <p className="ui-font text-[12px] text-slate-500">
                               El. paštas
                             </p>
-                            <p className="mt-[4px] ui-font text-[14px] font-semibold text-slate-800 break-all">
+                            <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
                               {booking.guest_email || "-"}
                             </p>
                           </div>
