@@ -53,7 +53,7 @@ export default function PartnerVenuePage() {
         const { data: venueRow, error: venueError } = await supabase
           .from("venues")
           .select(
-            "id, name, description, address, city, email, phone, website, facebook_url, google_maps_url",
+            "id, name, description, address, city, email, phone, website, facebook_url, instagram_url, tiktok_url, google_maps_url",
           )
           .eq("owner_id", user.id)
           .limit(1)
@@ -271,7 +271,21 @@ export default function PartnerVenuePage() {
                   </p>
                 </div>
 
-                <div className="rounded-[20px] bg-slate-50 p-[14px] md:col-span-2">
+                <div className="rounded-[20px] bg-slate-50 p-[14px]">
+                  <p className="ui-font text-[12px] text-slate-500">Instagram</p>
+                  <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
+                    {venue.instagram_url || "-"}
+                  </p>
+                </div>
+
+                <div className="rounded-[20px] bg-slate-50 p-[14px]">
+                  <p className="ui-font text-[12px] text-slate-500">TikTok</p>
+                  <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
+                    {venue.tiktok_url || "-"}
+                  </p>
+                </div>
+
+                <div className="rounded-[20px] bg-slate-50 p-[14px] md:col-span-2 xl:col-span-3">
                   <p className="ui-font text-[12px] text-slate-500">Google Maps</p>
                   <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
                     {venue.google_maps_url || "-"}
@@ -313,7 +327,7 @@ export default function PartnerVenuePage() {
               ) : (
                 <div className="flex h-full min-h-[280px] items-center justify-center bg-gradient-to-br from-primary to-dark px-[24px] text-center">
                   <p className="ui-font text-[16px] font-semibold text-white">
-                    Cover nuotrauka dar neprideta
+                    Viršelio nuotrauka dar neprideta
                   </p>
                 </div>
               )}

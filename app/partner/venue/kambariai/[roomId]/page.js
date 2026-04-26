@@ -48,6 +48,7 @@ export default function EditRoomPage() {
   const [roomName, setRoomName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [extraHourPrice, setExtraHourPrice] = useState("");
   const [capacity, setCapacity] = useState("");
   const [city, setCity] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("120");
@@ -79,7 +80,7 @@ export default function EditRoomPage() {
     const { data: roomRow, error: roomError } = await supabase
       .from("rooms")
       .select(
-        "id, venue_id, name, description, price, capacity, city, duration_minutes, buffer_minutes, min_age, max_age",
+        "id, venue_id, name, description, price, extra_hour_price, capacity, city, duration_minutes, buffer_minutes, min_age, max_age",
       )
       .eq("id", roomId)
       .maybeSingle();
@@ -121,6 +122,7 @@ export default function EditRoomPage() {
     setRoomName(roomRow.name || "");
     setDescription(roomRow.description || "");
     setPrice(String(roomRow.price ?? ""));
+    setExtraHourPrice(String(roomRow.extra_hour_price ?? ""));
     setCapacity(String(roomRow.capacity ?? ""));
     setCity(roomRow.city || "");
     setDurationMinutes(String(roomRow.duration_minutes ?? "120"));
@@ -208,6 +210,8 @@ export default function EditRoomPage() {
           name: roomName.trim() || null,
           description: description.trim() || null,
           price: price === "" ? null : Number(price),
+          extra_hour_price:
+            extraHourPrice === "" ? null : Number(extraHourPrice),
           capacity: capacity === "" ? null : Number(capacity),
           city: city.trim() || null,
           duration_minutes: durationMinutes === "" ? null : Number(durationMinutes),
@@ -412,7 +416,7 @@ export default function EditRoomPage() {
               />
             </div>
 
-            <div className="grid gap-[12px] md:grid-cols-3">
+            <div className="grid gap-[12px] md:grid-cols-4">
               <input
                 type="number"
                 min="0"
@@ -420,6 +424,15 @@ export default function EditRoomPage() {
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="Kaina"
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={extraHourPrice}
+                onChange={(e) => setExtraHourPrice(e.target.value)}
+                placeholder="Papildomos valandos kaina"
                 className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
               />
               <input

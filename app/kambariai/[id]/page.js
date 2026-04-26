@@ -25,7 +25,7 @@ async function fetchRoomData(roomId) {
   const { data: venue } = await supabase
     .from("venues")
     .select(
-      "id, name, address, city, phone, email, website, latitude, longitude",
+      "id, name, address, city, phone, email, website, google_maps_url, latitude, longitude",
     )
     .eq("id", room.venue_id)
     .single();
@@ -122,6 +122,7 @@ export default function RoomBookingPage() {
             name={venue.name}
             address={venue.address}
             city={venue.city || room.city}
+            googleMapsUrl={venue.google_maps_url}
             latitude={venue.latitude}
             longitude={venue.longitude}
             zoom={17}

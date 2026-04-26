@@ -37,6 +37,7 @@ export default function CreateRoomPage() {
   const [roomName, setRoomName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [extraHourPrice, setExtraHourPrice] = useState("");
   const [capacity, setCapacity] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -151,6 +152,11 @@ export default function CreateRoomPage() {
       return;
     }
 
+    if (extraHourPrice === "" || Number(extraHourPrice) < 0) {
+      setErrorMsg("Nurodykite teisinga papildomos valandos kaina.");
+      return;
+    }
+
     if (!durationMinutes || Number(durationMinutes) <= 0) {
       setErrorMsg("Nurodykite minimalią rezervacijos trukmę minutėmis.");
       return;
@@ -192,6 +198,7 @@ export default function CreateRoomPage() {
         name: trimmedName,
         description: trimmedDescription || null,
         price: Number(price),
+        extra_hour_price: Number(extraHourPrice),
         capacity: Number(capacity),
         city: trimmedCity,
         duration_minutes: Number(durationMinutes),
@@ -361,7 +368,7 @@ export default function CreateRoomPage() {
               />
             </div>
 
-            <div className="grid gap-[12px] md:grid-cols-3">
+            <div className="grid gap-[12px] md:grid-cols-4">
               <div className="space-y-[6px]">
                 <label className="ui-font text-[13px] text-slate-600">
                   Minimali rezervacijos trukmė (min.)
@@ -389,6 +396,21 @@ export default function CreateRoomPage() {
                   onChange={(e) => setPrice(e.target.value)}
                   className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
                   placeholder="150"
+                />
+              </div>
+
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Papildomos valandos kaina
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={extraHourPrice}
+                  onChange={(e) => setExtraHourPrice(e.target.value)}
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                  placeholder="20"
                 />
               </div>
 

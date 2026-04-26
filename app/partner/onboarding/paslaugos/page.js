@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import Loader from "../../../components/Loader";
+import { extractCoordinatesFromGoogleMapsUrl } from "../../../lib/googleMaps";
 
 export default function ServiceProviderOnboardingPage() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export default function ServiceProviderOnboardingPage() {
   const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [tiktokUrl, setTiktokUrl] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
 
   useEffect(() => {
@@ -150,6 +153,8 @@ export default function ServiceProviderOnboardingPage() {
       await ensurePublicUserRow(user);
 
       const providerId = crypto.randomUUID();
+      const locationCoordinates =
+        extractCoordinatesFromGoogleMapsUrl(googleMapsUrl);
 
       const payload = {
         id: providerId,
@@ -162,7 +167,11 @@ export default function ServiceProviderOnboardingPage() {
         phone: phone.trim() || null,
         website: website.trim() || null,
         facebook_url: facebookUrl.trim() || null,
+        instagram_url: instagramUrl.trim() || null,
+        tiktok_url: tiktokUrl.trim() || null,
         google_maps_url: googleMapsUrl.trim() || null,
+        latitude: locationCoordinates?.latitude ?? null,
+        longitude: locationCoordinates?.longitude ?? null,
         is_published: true,
       };
 
@@ -324,6 +333,34 @@ export default function ServiceProviderOnboardingPage() {
                 onChange={(e) => setFacebookUrl(e.target.value)}
                 className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
                 placeholder="https://facebook.com/..."
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-[12px] md:grid-cols-2">
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                Instagram nuoroda
+              </label>
+              <input
+                type="text"
+                value={instagramUrl}
+                onChange={(e) => setInstagramUrl(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="https://instagram.com/..."
+              />
+            </div>
+
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                TikTok nuoroda
+              </label>
+              <input
+                type="text"
+                value={tiktokUrl}
+                onChange={(e) => setTiktokUrl(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="https://tiktok.com/@..."
               />
             </div>
           </div>

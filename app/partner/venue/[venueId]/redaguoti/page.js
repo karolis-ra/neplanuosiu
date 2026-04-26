@@ -6,6 +6,10 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
 import Loader from "@/app/components/Loader";
 import ConfirmModal from "@/app/components/ConfirmModal";
+import {
+  extractCoordinatesFromGoogleMapsUrl,
+  parseCoordinateInput,
+} from "@/app/lib/googleMaps";
 
 const BUCKET = "public-images";
 
@@ -76,7 +80,11 @@ export default function EditVenuePage() {
   const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [tiktokUrl, setTiktokUrl] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [coverPath, setCoverPath] = useState("");
   const [coverFile, setCoverFile] = useState(null);
 
@@ -114,7 +122,7 @@ export default function EditVenuePage() {
         const { data: venue, error: venueError } = await supabase
           .from("venues")
           .select(
-            "id, name, description, address, city, email, phone, website, facebook_url, google_maps_url",
+            "id, name, description, address, city, email, phone, website, facebook_url, instagram_url, tiktok_url, google_maps_url, latitude, longitude",
           )
           .eq("id", venueId)
           .eq("owner_id", user.id)
@@ -146,7 +154,15 @@ export default function EditVenuePage() {
         setPhone(venue.phone || "");
         setWebsite(venue.website || "");
         setFacebookUrl(venue.facebook_url || "");
+        setInstagramUrl(venue.instagram_url || "");
+        setTiktokUrl(venue.tiktok_url || "");
         setGoogleMapsUrl(venue.google_maps_url || "");
+        setLatitude(
+          typeof venue.latitude === "number" ? String(venue.latitude) : "",
+        );
+        setLongitude(
+          typeof venue.longitude === "number" ? String(venue.longitude) : "",
+        );
         setCoverPath(coverImage?.path || "");
       } catch (error) {
         console.error("load venue edit error:", error);
@@ -176,6 +192,20 @@ export default function EditVenuePage() {
     setSuccessMsg("");
 
     try {
+      const urlCoordinates = extractCoordinatesFromGoogleMapsUrl(googleMapsUrl);
+      const parsedLatitude = parseCoordinateInput(latitude, {
+        min: -90,
+        max: 90,
+      });
+      const parsedLongitude = parseCoordinateInput(longitude, {
+        min: -180,
+        max: 180,
+      });
+
+      const resolvedLatitude = parsedLatitude ?? urlCoordinates?.latitude ?? null;
+      const resolvedLongitude =
+        parsedLongitude ?? urlCoordinates?.longitude ?? null;
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -194,7 +224,11 @@ export default function EditVenuePage() {
         phone: phone.trim() || null,
         website: website.trim() || null,
         facebook_url: facebookUrl.trim() || null,
+        instagram_url: instagramUrl.trim() || null,
+        tiktok_url: tiktokUrl.trim() || null,
         google_maps_url: googleMapsUrl.trim() || null,
+        latitude: resolvedLatitude,
+        longitude: resolvedLongitude,
       };
 
       const { error: updateError } = await supabase
@@ -301,7 +335,10 @@ export default function EditVenuePage() {
         .maybeSingle();
 
       if (venueAccessError) {
-        throw createStepError("Nepavyko patikrinti erdves teisiu", venueAccessError);
+        throw createStepError(
+          "Nepavyko patikrinti erdves teisiu",
+          venueAccessError,
+        );
       }
       if (!ownedVenue) {
         router.replace("/partner/venue");
@@ -319,7 +356,10 @@ export default function EditVenuePage() {
 
       const roomIds = (roomRows || []).map((item) => item.id);
 
-      let servicesQuery = supabase.from("services").select("id").eq("venue_id", venueId);
+      let servicesQuery = supabase
+        .from("services")
+        .select("id")
+        .eq("venue_id", venueId);
 
       if (roomIds.length) {
         servicesQuery = supabase
@@ -334,7 +374,9 @@ export default function EditVenuePage() {
         throw createStepError("Nepavyko gauti susietu paslaugu", servicesError);
       }
 
-      const serviceIds = Array.from(new Set((serviceRows || []).map((item) => item.id)));
+      const serviceIds = Array.from(
+        new Set((serviceRows || []).map((item) => item.id)),
+      );
 
       let bookingRows = [];
 
@@ -382,7 +424,10 @@ export default function EditVenuePage() {
           .in("booking_id", bookingIds);
 
         if (error) {
-          throw createStepError("Nepavyko istrinti rezervaciju tvirtinimu", error);
+          throw createStepError(
+            "Nepavyko istrinti rezervaciju tvirtinimu",
+            error,
+          );
         }
       }
 
@@ -457,7 +502,10 @@ export default function EditVenuePage() {
           .in("room_id", roomIds);
 
         if (favoritesError) {
-          throw createStepError("Nepavyko istrinti megstamu kambariu irasu", favoritesError);
+          throw createStepError(
+            "Nepavyko istrinti megstamu kambariu irasu",
+            favoritesError,
+          );
         }
 
         const { error: categoriesError } = await supabase
@@ -466,7 +514,10 @@ export default function EditVenuePage() {
           .in("room_id", roomIds);
 
         if (categoriesError) {
-          throw createStepError("Nepavyko istrinti kambario kategoriju", categoriesError);
+          throw createStepError(
+            "Nepavyko istrinti kambario kategoriju",
+            categoriesError,
+          );
         }
 
         const { error: roomUnavailabilityError } = await supabase
@@ -487,7 +538,10 @@ export default function EditVenuePage() {
           .in("room_id", roomIds);
 
         if (availabilityError) {
-          throw createStepError("Nepavyko istrinti kambario darbo laiko", availabilityError);
+          throw createStepError(
+            "Nepavyko istrinti kambario darbo laiko",
+            availabilityError,
+          );
         }
       }
 
@@ -506,7 +560,10 @@ export default function EditVenuePage() {
         .eq("venue_id", venueId);
 
       if (imagesDeleteError) {
-        throw createStepError("Nepavyko istrinti erdves nuotrauku irasu", imagesDeleteError);
+        throw createStepError(
+          "Nepavyko istrinti erdves nuotrauku irasu",
+          imagesDeleteError,
+        );
       }
 
       if (bookingIds.length) {
@@ -516,7 +573,10 @@ export default function EditVenuePage() {
           .in("id", bookingIds);
 
         if (bookingsDeleteError) {
-          throw createStepError("Nepavyko istrinti rezervaciju", bookingsDeleteError);
+          throw createStepError(
+            "Nepavyko istrinti rezervaciju",
+            bookingsDeleteError,
+          );
         }
       }
 
@@ -527,7 +587,10 @@ export default function EditVenuePage() {
           .in("id", serviceIds);
 
         if (servicesDeleteError) {
-          throw createStepError("Nepavyko istrinti paslaugu", servicesDeleteError);
+          throw createStepError(
+            "Nepavyko istrinti paslaugu",
+            servicesDeleteError,
+          );
         }
       }
 
@@ -549,7 +612,10 @@ export default function EditVenuePage() {
         .eq("owner_id", user.id);
 
       if (venueDeleteError) {
-        throw createStepError("Nepavyko istrinti zaidimu erdves", venueDeleteError);
+        throw createStepError(
+          "Nepavyko istrinti zaidimu erdves",
+          venueDeleteError,
+        );
       }
 
       const storagePaths = [...(imageRows || []), ...serviceImageRows]
@@ -723,6 +789,32 @@ export default function EditVenuePage() {
             </div>
           </div>
 
+          <div className="grid gap-[12px] md:grid-cols-2">
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                Instagram
+              </label>
+              <input
+                type="text"
+                value={instagramUrl}
+                onChange={(e) => setInstagramUrl(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                TikTok
+              </label>
+              <input
+                type="text"
+                value={tiktokUrl}
+                onChange={(e) => setTiktokUrl(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
               Google Maps nuoroda
@@ -735,9 +827,43 @@ export default function EditVenuePage() {
             />
           </div>
 
+          <div className="grid gap-[12px] md:grid-cols-2">
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                Platuma
+              </label>
+              <input
+                type="text"
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="54.6872"
+              />
+            </div>
+
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                Ilguma
+              </label>
+              <input
+                type="text"
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="25.2797"
+              />
+            </div>
+          </div>
+
+          <p className="ui-font text-[13px] leading-[21px] text-slate-500">
+            Norėdami tiksliai parodyti vietą žemėlapyje, galite platumą ir
+            ilgumą įvesti ranka. Jei laukai palikti tušti, bandysime jas
+            ištraukti iš „Google Maps“ nuorodos.
+          </p>
+
           <div className="space-y-[10px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Cover nuotrauka
+              Viršelio nuotrauka
             </label>
             <input
               type="file"
@@ -758,13 +884,6 @@ export default function EditVenuePage() {
                 />
               </div>
             ) : null}
-          </div>
-
-          <div className="rounded-[18px] bg-slate-50 p-[14px]">
-            <p className="ui-font text-[13px] leading-[21px] text-slate-600">
-              Instagram ir TikTok lauku dar nera duomenu bazeje, todel siuo metu
-              redagavime saugomi tik esami kontaktiniai laukai.
-            </p>
           </div>
 
           <button

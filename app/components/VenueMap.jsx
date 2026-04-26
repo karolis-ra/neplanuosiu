@@ -1,31 +1,71 @@
 "use client";
 
+import {
+  buildGoogleMapsEmbedUrl,
+  extractCoordinatesFromGoogleMapsUrl,
+} from "../lib/googleMaps";
+
 const DEFAULT_ZOOM = 17;
 
 export default function VenueMap({
   name,
   address,
   city,
+  googleMapsUrl,
   latitude,
   longitude,
   zoom = DEFAULT_ZOOM,
 }) {
-  if (!address && !city && (!latitude || !longitude)) return null;
+  const urlCoordinates = extractCoordinatesFromGoogleMapsUrl(googleMapsUrl);
+  const resolvedLatitude = urlCoordinates?.latitude ?? latitude;
+  const resolvedLongitude = urlCoordinates?.longitude ?? longitude;
+  const hasLocationQuery = Boolean(name || address || city);
 
   const hasCoords =
-    typeof latitude === "number" && typeof longitude === "number";
+    typeof resolvedLatitude === "number" &&
+    typeof resolvedLongitude === "number";
 
-  const query = encodeURIComponent(
-    [name, address, city].filter(Boolean).join(", ")
-  );
+  if (!hasLocationQuery && !hasCoords && !googleMapsUrl) {
+    return null;
+  }
 
-  const src = hasCoords
-    ? `https://www.google.com/maps?q=${latitude},${longitude}&z=${zoom}&output=embed`
-    : `https://www.google.com/maps?q=${query}&z=${zoom}&output=embed`;
+  const src = buildGoogleMapsEmbedUrl({
+    googleMapsUrl,
+    latitude: resolvedLatitude,
+    longitude: resolvedLongitude,
+    name,
+    address,
+    city,
+    zoom,
+  });
+
+  const externalMapUrl =
+    googleMapsUrl?.trim() ||
+    (hasCoords
+      ? `https://www.google.com/maps?q=${resolvedLatitude},${resolvedLongitude}&z=${zoom}`
+      : buildGoogleMapsEmbedUrl({
+          latitude: resolvedLatitude,
+          longitude: resolvedLongitude,
+          name,
+          address,
+          city,
+          zoom,
+        }).replace("&output=embed", ""));
 
   return (
     <div className="mt-4 space-y-2">
-      <h2 className="ui-font text-lg font-semibold">Lokacija žemėlapyje</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="ui-font text-lg font-semibold">Lokacija žemėlapyje</h2>
+        <a
+          href={externalMapUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="ui-font text-sm font-medium text-primary transition hover:text-dark"
+        >
+          Atidaryti „Google Maps“
+        </a>
+      </div>
+
       <div className="overflow-hidden rounded-3xl border border-slate-200">
         <iframe
           title={`Žemėlapis: ${name}`}

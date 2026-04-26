@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import Loader from "../../../components/Loader";
+import {
+  extractCoordinatesFromGoogleMapsUrl,
+  parseCoordinateInput,
+} from "../../../lib/googleMaps";
 
 const BUCKET = "public-images";
 
@@ -33,7 +37,11 @@ export default function VenueOnboardingPage() {
   const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [tiktokUrl, setTiktokUrl] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
 
@@ -115,7 +123,7 @@ export default function VenueOnboardingPage() {
     }
 
     if (!coverFile) {
-      setErrorMsg("Pridekite venue cover nuotrauka.");
+      setErrorMsg("Pridekite venue viršelio nuotrauka.");
       return;
     }
 
@@ -125,6 +133,20 @@ export default function VenueOnboardingPage() {
     let uploadedCoverPath = "";
 
     try {
+      const urlCoordinates = extractCoordinatesFromGoogleMapsUrl(googleMapsUrl);
+      const parsedLatitude = parseCoordinateInput(latitude, {
+        min: -90,
+        max: 90,
+      });
+      const parsedLongitude = parseCoordinateInput(longitude, {
+        min: -180,
+        max: 180,
+      });
+
+      const resolvedLatitude = parsedLatitude ?? urlCoordinates?.latitude ?? null;
+      const resolvedLongitude =
+        parsedLongitude ?? urlCoordinates?.longitude ?? null;
+
       const payload = {
         owner_id: userId,
         name: name.trim(),
@@ -135,7 +157,11 @@ export default function VenueOnboardingPage() {
         phone: phone.trim() || null,
         website: website.trim() || null,
         facebook_url: facebookUrl.trim() || null,
+        instagram_url: instagramUrl.trim() || null,
+        tiktok_url: tiktokUrl.trim() || null,
         google_maps_url: googleMapsUrl.trim() || null,
+        latitude: resolvedLatitude,
+        longitude: resolvedLongitude,
         is_published: true,
       };
 
@@ -212,7 +238,8 @@ export default function VenueOnboardingPage() {
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
           Pirmiausia uzpildykite pagrindine informacija apie savo vieta ir
-          pridekite cover nuotrauka. Kitame zingsnyje pridesime pirma kambari.
+          pridekite viršelio nuotrauką. Kitame zingsnyje pridesime pirma
+          kambari.
         </p>
       </div>
 
@@ -334,6 +361,34 @@ export default function VenueOnboardingPage() {
             </div>
           </div>
 
+          <div className="grid gap-[12px] md:grid-cols-2">
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                Instagram nuoroda
+              </label>
+              <input
+                type="text"
+                value={instagramUrl}
+                onChange={(e) => setInstagramUrl(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="https://instagram.com/..."
+              />
+            </div>
+
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                TikTok nuoroda
+              </label>
+              <input
+                type="text"
+                value={tiktokUrl}
+                onChange={(e) => setTiktokUrl(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="https://tiktok.com/@..."
+              />
+            </div>
+          </div>
+
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
               Google Maps nuoroda
@@ -347,9 +402,43 @@ export default function VenueOnboardingPage() {
             />
           </div>
 
+          <div className="grid gap-[12px] md:grid-cols-2">
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                Platuma
+              </label>
+              <input
+                type="text"
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="54.6872"
+              />
+            </div>
+
+            <div className="space-y-[6px]">
+              <label className="ui-font text-[13px] text-slate-600">
+                Ilguma
+              </label>
+              <input
+                type="text"
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                placeholder="25.2797"
+              />
+            </div>
+          </div>
+
+          <p className="ui-font text-[13px] leading-[21px] text-slate-500">
+            Jei norite tikslaus žemėlapio, įveskite platumą ir ilgumą ranka.
+            Jei šiuos laukus paliksite tuščius, bandysime koordinates ištraukti
+            iš „Google Maps“ nuorodos.
+          </p>
+
           <div className="space-y-[10px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Cover nuotrauka
+              Viršelio nuotrauka
             </label>
             <input
               type="file"
