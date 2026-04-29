@@ -46,6 +46,16 @@ function getWeekdayFromDate(date) {
   return date.getDay();
 }
 
+function isBeforeToday(date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const candidate = new Date(date);
+  candidate.setHours(0, 0, 0, 0);
+
+  return candidate < today;
+}
+
 function buildBusyIntervals(bookings = [], blocks = []) {
   const bookingIntervals = bookings.map((b) => ({
     start: parseTimeToMinutes(String(b.start_time).slice(0, 5)),
@@ -164,6 +174,8 @@ export default function BookingDateTimePicker({
 
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(year, month, day);
+      if (isBeforeToday(d)) continue;
+
       const weekday = getWeekdayFromDate(d);
       const dayAvail = availability.filter((a) => a.weekday === weekday);
 
@@ -210,6 +222,10 @@ export default function BookingDateTimePicker({
 
     const newSlots = [];
     const step = 30;
+    const selectedDateStr = formatDate(selectedDate);
+    const todayStr = formatDate(new Date());
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     dayAvail.forEach((a) => {
       const availStart = parseTimeToMinutes(String(a.start_time).slice(0, 5));
@@ -220,6 +236,10 @@ export default function BookingDateTimePicker({
         t + durationMinutes + bufferMinutes <= availEnd;
         t += step
       ) {
+        if (selectedDateStr === todayStr && t <= currentMinutes) {
+          continue;
+        }
+
         const bookingEnd = t + durationMinutes;
         const occupiedUntil = bookingEnd + bufferMinutes;
 
@@ -319,6 +339,12 @@ export default function BookingDateTimePicker({
   function changeMonth(offset) {
     const d = new Date(currentMonth);
     d.setMonth(d.getMonth() + offset);
+    const firstDayThisMonth = new Date();
+    firstDayThisMonth.setDate(1);
+    firstDayThisMonth.setHours(0, 0, 0, 0);
+
+    if (d < firstDayThisMonth) return;
+
     setCurrentMonth(d);
     setSelectedDate(null);
     setAvailableStartSlots([]);
@@ -361,7 +387,8 @@ export default function BookingDateTimePicker({
   for (let day = 1; day <= daysInMonth; day++) {
     const d = new Date(year, month, day);
     const dateStr = formatDate(d);
-    const isAvailable = daysWithOpening.has(dateStr);
+    const isPastDate = isBeforeToday(d);
+    const isAvailable = !isPastDate && daysWithOpening.has(dateStr);
     const isSelected = selectedDate && formatDate(selectedDate) === dateStr;
 
     dayCells.push(
@@ -410,6 +437,10 @@ export default function BookingDateTimePicker({
             <button
               type="button"
               onClick={() => changeMonth(-1)}
+              disabled={
+                year === new Date().getFullYear() &&
+                month === new Date().getMonth()
+              }
               className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-slate-200 bg-white text-[16px] text-slate-600 transition hover:border-primary/30 hover:text-primary"
             >
               ←

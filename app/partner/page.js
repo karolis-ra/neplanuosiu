@@ -321,7 +321,7 @@ export default function PartnerPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push("/partner/paslaugu-uzklausos")}
+                  onClick={() => router.push("/partner/rezervacijos")}
                   className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Rezervacijos

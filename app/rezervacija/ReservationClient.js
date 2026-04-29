@@ -355,14 +355,7 @@ export default function ReservationClient() {
         },
       ];
 
-      const externalServices = selectedServices.filter((service) => {
-        const isVenueOwned =
-          service.venue_id === room.venue_id || service.room_id === roomId;
-
-        return !isVenueOwned;
-      });
-
-      externalServices.forEach((service) => {
+      selectedServices.forEach((service) => {
         approvalRows.push({
           booking_id: insertedBookingId,
           approval_type: "service",
