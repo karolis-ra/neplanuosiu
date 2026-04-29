@@ -1,6 +1,26 @@
 // lib/roomImageUtils.js
 const BUCKET = "public-images";
 
+function sortImages(images) {
+  return [...(images || [])].sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    if (a.is_cover && !b.is_cover) return -1;
+    if (!a.is_cover && b.is_cover) return 1;
+    return (a.position ?? 9999) - (b.position ?? 9999);
+  });
+}
+
+function getPublicImageUrl(supabase, path) {
+  if (!path) return null;
+
+  const { data: publicData } = supabase.storage
+    .from(BUCKET)
+    .getPublicUrl(path);
+
+  return publicData?.publicUrl || null;
+}
+
 export async function buildRoomsWithImages({ supabase, rooms }) {
   if (!rooms || rooms.length === 0) return [];
 
@@ -28,7 +48,8 @@ export async function buildRoomsWithImages({ supabase, rooms }) {
   const { data: venueImagesData } = await supabase
     .from("images")
     .select("room_id, venue_id, path, is_primary, is_cover, position")
-    .in("venue_id", venueIds);
+    .in("venue_id", venueIds)
+    .is("room_id", null);
 
   const allImages = [...(roomImagesData || []), ...(venueImagesData || [])];
 
@@ -36,29 +57,15 @@ export async function buildRoomsWithImages({ supabase, rooms }) {
     let imgs = allImages.filter((img) => img.room_id === room.id);
 
     if (imgs.length === 0) {
-      imgs = allImages.filter((img) => img.venue_id === room.venue_id);
+      imgs = allImages.filter(
+        (img) => img.venue_id === room.venue_id && img.room_id == null
+      );
     }
 
     let primaryImageUrl = null;
 
     if (imgs.length > 0) {
-      const sorted = [...imgs].sort((a, b) => {
-        if (a.is_primary && !b.is_primary) return -1;
-        if (!a.is_primary && b.is_primary) return 1;
-        if (a.is_cover && !b.is_cover) return -1;
-        if (!a.is_cover && b.is_cover) return 1;
-        return (a.position ?? 9999) - (b.position ?? 9999);
-      });
-
-      const chosen = sorted[0];
-
-      if (chosen?.path) {
-        const { data: publicData } = supabase.storage
-          .from(BUCKET)
-          .getPublicUrl(chosen.path);
-
-        primaryImageUrl = publicData?.publicUrl || null;
-      }
+      primaryImageUrl = getPublicImageUrl(supabase, sortImages(imgs)[0]?.path);
     }
 
     const venue = venueMap[room.venue_id] || {};
@@ -73,28 +80,26 @@ export async function buildRoomsWithImages({ supabase, rooms }) {
 }
 
 export async function getRoomGalleryImages({ supabase, roomId, venueId }) {
-  const { data: images } = await supabase
+  const { data: roomImages } = await supabase
     .from("images")
     .select("room_id, venue_id, path, is_primary, is_cover, position")
-    .or(`room_id.eq.${roomId},venue_id.eq.${venueId}`);
+    .eq("room_id", roomId);
 
-  if (!images || images.length === 0) return [];
+  let images = roomImages || [];
 
-  const sorted = [...images].sort((a, b) => {
-    if (a.is_primary && !b.is_primary) return -1;
-    if (!a.is_primary && b.is_primary) return 1;
-    if (a.is_cover && !b.is_cover) return -1;
-    if (!a.is_cover && b.is_cover) return 1;
-    return (a.position ?? 9999) - (b.position ?? 9999);
-  });
+  if (images.length === 0 && venueId) {
+    const { data: venueImages } = await supabase
+      .from("images")
+      .select("room_id, venue_id, path, is_primary, is_cover, position")
+      .eq("venue_id", venueId)
+      .is("room_id", null);
 
-  return sorted
-    .map((img) => {
-      if (!img.path) return null;
-      const { data: publicData } = supabase.storage
-        .from(BUCKET)
-        .getPublicUrl(img.path);
-      return publicData?.publicUrl || null;
-    })
+    images = venueImages || [];
+  }
+
+  if (images.length === 0) return [];
+
+  return sortImages(images)
+    .map((img) => getPublicImageUrl(supabase, img.path))
     .filter(Boolean);
 }

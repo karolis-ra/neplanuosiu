@@ -37,14 +37,8 @@ export default function LoginPage() {
   useEffect(() => {
     let isMounted = true;
 
-    async function handleOAuthReturn() {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-
-      if (!isMounted) return;
-      if (error || !user) return;
+    async function redirectAuthenticatedUser(user) {
+      if (!user?.id) return;
 
       const { data: userRow, error: userRowError } = await supabase
         .from("users")
@@ -64,10 +58,73 @@ export default function LoginPage() {
       router.replace(targetPath);
     }
 
+    async function setSessionFromUrlHash() {
+      if (typeof window === "undefined" || !window.location.hash) return null;
+
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+
+      if (!accessToken || !refreshToken) return null;
+
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (error) {
+        console.error("oauth setSession error:", error.message);
+        setErrorMsg("Nepavyko užbaigti prisijungimo su Google.");
+        return null;
+      }
+
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+
+      return data.session || null;
+    }
+
+    async function handleOAuthReturn() {
+      const hashSession = await setSessionFromUrlHash();
+
+      if (!isMounted) return;
+
+      if (hashSession?.user) {
+        await redirectAuthenticatedUser(hashSession.user);
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("oauth getSession error:", error.message);
+      }
+
+      if (!isMounted || !data.session?.user) return;
+
+      await redirectAuthenticatedUser(data.session.user);
+    }
+
     handleOAuthReturn();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event !== "SIGNED_IN" || !session?.user) return;
+
+        setTimeout(() => {
+          if (isMounted) {
+            redirectAuthenticatedUser(session.user);
+          }
+        }, 0);
+      },
+    );
 
     return () => {
       isMounted = false;
+      listener.subscription.unsubscribe();
     };
   }, [router, nextPath]);
 

@@ -1,12 +1,60 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
+import { mapServiceImagesWithUrls } from "../../lib/serviceImageUtils";
+import ResponsiveImageFrame from "../../components/ResponsiveImageFrame";
 import Loader from "../../components/Loader";
 import ConfirmModal from "../../components/ConfirmModal";
 
 const BUCKET = "public-images";
+
+const SERVICE_TYPES = [
+  { value: "decorations", label: "Dekoracijos" },
+  { value: "animator", label: "Animatorius" },
+  { value: "cake", label: "Tortas" },
+];
+
+const UNIT_OPTIONS = [
+  { value: "unit", label: "vnt." },
+  { value: "hour", label: "val." },
+  { value: "booking", label: "už rezervaciją" },
+  { value: "child", label: "vaikui" },
+  { value: "adult", label: "suaugusiajam" },
+];
+
+const SERVICE_TYPES_WITH_DURATION = ["animator"];
+
+const EMPTY_EDIT_FORM = {
+  id: "",
+  name: "",
+  serviceType: "decorations",
+  pricePerUnit: "",
+  unitsOfMeasure: "unit",
+  durationMinutes: "",
+  isListed: true,
+  isGlobal: false,
+  shortDescription: "",
+  fullDescription: "",
+  includesText: "",
+  ingredients: "",
+  notes: "",
+};
+
+const EMPTY_PROVIDER_FORM = {
+  name: "",
+  description: "",
+  address: "",
+  city: "",
+  email: "",
+  phone: "",
+  website: "",
+  facebookUrl: "",
+  instagramUrl: "",
+  tiktokUrl: "",
+  googleMapsUrl: "",
+};
 
 function formatPrice(value) {
   const amount = Number(value || 0);
@@ -43,6 +91,110 @@ function getUnitLabel(unit) {
   }
 }
 
+function getServiceScope(service) {
+  if (service?.room_id) {
+    return {
+      label: "Priskirta kambariui",
+      value: service.room?.name || "Kambarys",
+    };
+  }
+
+  if (service?.venue_id && !service?.is_global) {
+    return {
+      label: "Priskirta erdvei",
+      value: service.venue?.name || "Erdvė",
+    };
+  }
+
+  return {
+    label: "Matomumas",
+    value: "Bendras katalogas",
+  };
+}
+
+function sanitizeFileName(fileName) {
+  return String(fileName || "photo")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function ServiceImageCarousel({ images = [], name }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeImage = images[activeIndex] || null;
+
+  if (!images.length) {
+    return (
+      <ResponsiveImageFrame
+        ratio="16 / 9"
+        className="mb-[16px] rounded-[20px]"
+      />
+    );
+  }
+
+  return (
+    <div className="mb-[16px]">
+      <ResponsiveImageFrame
+        src={activeImage.imageUrl}
+        alt={activeImage.alt_text || name}
+        ratio="16 / 9"
+        className="rounded-[20px]"
+      >
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                setActiveIndex((current) =>
+                  current === 0 ? images.length - 1 : current - 1,
+                )
+              }
+              className="ui-font absolute left-[10px] top-1/2 flex h-[34px] w-[34px] -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[18px] font-semibold text-slate-800 shadow-sm"
+              aria-label="Ankstesnė nuotrauka"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setActiveIndex((current) => (current + 1) % images.length)
+              }
+              className="ui-font absolute right-[10px] top-1/2 flex h-[34px] w-[34px] -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[18px] font-semibold text-slate-800 shadow-sm"
+              aria-label="Kita nuotrauka"
+            >
+              ›
+            </button>
+          </>
+        )}
+      </ResponsiveImageFrame>
+
+      {images.length > 1 && (
+        <div className="mt-[10px] flex gap-[8px] overflow-x-auto">
+          {images.map((image, index) => (
+            <button
+              key={image.id}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              className={`h-[52px] w-[72px] shrink-0 overflow-hidden rounded-[12px] border ${
+                activeIndex === index ? "border-primary" : "border-slate-200"
+              }`}
+              aria-label={`Rodyti ${index + 1} nuotrauką`}
+            >
+              <ResponsiveImageFrame
+                src={image.imageUrl}
+                alt={image.alt_text || name}
+                ratio="18 / 13"
+                className="h-[52px] w-[72px]"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PartnerServicesPage() {
   const router = useRouter();
 
@@ -53,6 +205,32 @@ export default function PartnerServicesPage() {
   const [provider, setProvider] = useState(null);
   const [services, setServices] = useState([]);
   const [serviceToDelete, setServiceToDelete] = useState(null);
+  const [editingService, setEditingService] = useState(null);
+  const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
+  const [editPhotoFiles, setEditPhotoFiles] = useState([]);
+  const [savingService, setSavingService] = useState(false);
+  const [editingProvider, setEditingProvider] = useState(false);
+  const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
+  const [savingProvider, setSavingProvider] = useState(false);
+
+  const showsEditDurationField = SERVICE_TYPES_WITH_DURATION.includes(
+    editForm.serviceType,
+  );
+
+  const editPhotoPreviews = useMemo(
+    () =>
+      editPhotoFiles.map((file) => ({
+        name: file.name,
+        url: URL.createObjectURL(file),
+      })),
+    [editPhotoFiles],
+  );
+
+  useEffect(() => {
+    return () => {
+      editPhotoPreviews.forEach((item) => URL.revokeObjectURL(item.url));
+    };
+  }, [editPhotoPreviews]);
 
   useEffect(() => {
     let isMounted = true;
@@ -117,7 +295,15 @@ export default function PartnerServicesPage() {
             notes,
             venue_id,
             room_id,
-            sort_order
+            sort_order,
+            room:rooms (
+              id,
+              name
+            ),
+            venue:venues (
+              id,
+              name
+            )
           `,
           )
           .eq("provider_id", providerRow.id)
@@ -130,7 +316,38 @@ export default function PartnerServicesPage() {
           throw servicesError;
         }
 
-        setServices(serviceRows || []);
+        const serviceIds = (serviceRows || []).map((service) => service.id);
+        let imagesByServiceId = new Map();
+
+        if (serviceIds.length) {
+          const { data: imageRows, error: imagesError } = await supabase
+            .from("service_images")
+            .select("id, service_id, path, alt_text, is_primary, position")
+            .in("service_id", serviceIds)
+            .order("position", { ascending: true });
+
+          if (imagesError) throw imagesError;
+
+          const mappedImages = mapServiceImagesWithUrls({
+            supabase,
+            images: imageRows || [],
+          });
+
+          imagesByServiceId = mappedImages.reduce((acc, image) => {
+            if (!acc.has(image.service_id)) {
+              acc.set(image.service_id, []);
+            }
+            acc.get(image.service_id).push(image);
+            return acc;
+          }, new Map());
+        }
+
+        setServices(
+          (serviceRows || []).map((service) => ({
+            ...service,
+            images: imagesByServiceId.get(service.id) || [],
+          })),
+        );
       } catch (error) {
         console.error("partner services load error:", error);
         if (isMounted) {
@@ -149,6 +366,271 @@ export default function PartnerServicesPage() {
       isMounted = false;
     };
   }, [router]);
+
+  function openProviderModal() {
+    if (!provider) return;
+
+    setProviderForm({
+      name: provider.name || "",
+      description: provider.description || "",
+      address: provider.address || "",
+      city: provider.city || "",
+      email: provider.email || "",
+      phone: provider.phone || "",
+      website: provider.website || "",
+      facebookUrl: provider.facebook_url || "",
+      instagramUrl: provider.instagram_url || "",
+      tiktokUrl: provider.tiktok_url || "",
+      googleMapsUrl: provider.google_maps_url || "",
+    });
+    setEditingProvider(true);
+  }
+
+  function closeProviderModal() {
+    setEditingProvider(false);
+    setProviderForm(EMPTY_PROVIDER_FORM);
+  }
+
+  function updateProviderForm(field, value) {
+    setProviderForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleSaveProvider(e) {
+    e.preventDefault();
+    if (!provider?.id) return;
+
+    setSavingProvider(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const payload = {
+        name: providerForm.name.trim() || null,
+        description: providerForm.description.trim() || null,
+        address: providerForm.address.trim() || null,
+        city: providerForm.city.trim() || null,
+        email: providerForm.email.trim() || null,
+        phone: providerForm.phone.trim() || null,
+        website: providerForm.website.trim() || null,
+        facebook_url: providerForm.facebookUrl.trim() || null,
+        instagram_url: providerForm.instagramUrl.trim() || null,
+        tiktok_url: providerForm.tiktokUrl.trim() || null,
+        google_maps_url: providerForm.googleMapsUrl.trim() || null,
+      };
+
+      const { error } = await supabase
+        .from("service_providers")
+        .update(payload)
+        .eq("id", provider.id);
+
+      if (error) throw error;
+
+      setProvider((current) => ({ ...current, ...payload }));
+      setSuccessMsg("Paslaugų profilis atnaujintas.");
+      closeProviderModal();
+    } catch (error) {
+      console.error("save provider profile error:", error);
+      setErrorMsg("Nepavyko išsaugoti paslaugų profilio pakeitimų.");
+    } finally {
+      setSavingProvider(false);
+    }
+  }
+
+  function openEditModal(service) {
+    setEditingService(service);
+    setEditPhotoFiles([]);
+    setEditForm({
+      id: service.id,
+      name: service.name || "",
+      serviceType: service.service_type || "decorations",
+      pricePerUnit: String(service.price_per_unit ?? ""),
+      unitsOfMeasure: service.units_of_measure || "unit",
+      durationMinutes:
+        service.duration_minutes == null ? "" : String(service.duration_minutes),
+      isListed: service.is_listed !== false,
+      isGlobal: Boolean(service.is_global),
+      shortDescription: service.short_description || "",
+      fullDescription: service.full_description || "",
+      includesText: service.includes_text || "",
+      ingredients: service.ingredients || "",
+      notes: service.notes || "",
+    });
+  }
+
+  function closeEditModal() {
+    setEditingService(null);
+    setEditForm(EMPTY_EDIT_FORM);
+    setEditPhotoFiles([]);
+  }
+
+  function updateEditForm(field, value) {
+    setEditForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "serviceType" && !SERVICE_TYPES_WITH_DURATION.includes(value)
+        ? { durationMinutes: "" }
+        : {}),
+    }));
+  }
+
+  async function handleDeleteServiceImage(image) {
+    if (!editingService || !image?.id) return;
+
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const { error: deleteError } = await supabase
+        .from("service_images")
+        .delete()
+        .eq("id", image.id);
+
+      if (deleteError) throw deleteError;
+
+      if (image.path) {
+        await supabase.storage.from(BUCKET).remove([image.path]);
+      }
+
+      setServices((current) =>
+        current.map((service) =>
+          service.id === editingService.id
+            ? {
+                ...service,
+                images: (service.images || []).filter(
+                  (item) => item.id !== image.id,
+                ),
+              }
+            : service,
+        ),
+      );
+
+      setEditingService((current) =>
+        current
+          ? {
+              ...current,
+              images: (current.images || []).filter(
+                (item) => item.id !== image.id,
+              ),
+            }
+          : current,
+      );
+    } catch (error) {
+      console.error("delete service image error:", error);
+      setErrorMsg("Nepavyko ištrinti paslaugos nuotraukos.");
+    }
+  }
+
+  async function handleSaveService(e) {
+    e.preventDefault();
+    if (!editingService || !provider?.id) return;
+
+    setSavingService(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    const uploadedPaths = [];
+
+    try {
+      const payload = {
+        name: editForm.name.trim() || null,
+        description:
+          editForm.fullDescription.trim() ||
+          editForm.shortDescription.trim() ||
+          null,
+        short_description: editForm.shortDescription.trim() || null,
+        full_description: editForm.fullDescription.trim() || null,
+        includes_text: editForm.includesText.trim() || null,
+        ingredients:
+          editForm.serviceType === "cake"
+            ? editForm.ingredients.trim() || null
+            : null,
+        notes: editForm.notes.trim() || null,
+        service_type: editForm.serviceType,
+        price_per_unit:
+          editForm.pricePerUnit === "" ? null : Number(editForm.pricePerUnit),
+        units_of_measure: editForm.unitsOfMeasure,
+        duration_minutes: showsEditDurationField
+          ? editForm.durationMinutes === ""
+            ? null
+            : Number(editForm.durationMinutes)
+          : null,
+        is_listed: editForm.isListed,
+        is_global: editForm.isGlobal,
+      };
+
+      const { error: updateError } = await supabase
+        .from("services")
+        .update(payload)
+        .eq("id", editingService.id);
+
+      if (updateError) throw updateError;
+
+      const existingImageCount = editingService.images?.length || 0;
+
+      for (let index = 0; index < editPhotoFiles.length; index += 1) {
+        const file = editPhotoFiles[index];
+        const path = `services/${provider.id}/${editingService.id}/${Date.now()}-${index}-${sanitizeFileName(file.name)}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        uploadedPaths.push(path);
+      }
+
+      let insertedImages = [];
+
+      if (uploadedPaths.length) {
+        const imageRows = uploadedPaths.map((path, index) => ({
+          service_id: editingService.id,
+          path,
+          alt_text: editForm.name.trim() || null,
+          is_primary: existingImageCount === 0 && index === 0,
+          position: existingImageCount + index,
+        }));
+
+        const { data: insertedRows, error: imageInsertError } = await supabase
+          .from("service_images")
+          .insert(imageRows)
+          .select("id, service_id, path, alt_text, is_primary, position");
+
+        if (imageInsertError) throw imageInsertError;
+
+        insertedImages = mapServiceImagesWithUrls({
+          supabase,
+          images: insertedRows || [],
+        });
+      }
+
+      const updatedService = {
+        ...editingService,
+        ...payload,
+        images: [...(editingService.images || []), ...insertedImages],
+      };
+
+      setServices((current) =>
+        current.map((service) =>
+          service.id === editingService.id ? updatedService : service,
+        ),
+      );
+      setEditingService(updatedService);
+      setEditPhotoFiles([]);
+      setSuccessMsg("Paslauga atnaujinta.");
+    } catch (error) {
+      console.error("save service error:", error);
+      if (uploadedPaths.length) {
+        await supabase.storage.from(BUCKET).remove(uploadedPaths);
+      }
+      setErrorMsg("Nepavyko išsaugoti paslaugos pakeitimų.");
+    } finally {
+      setSavingService(false);
+    }
+  }
 
   async function handleDeleteService() {
     if (!serviceToDelete) {
@@ -339,8 +821,16 @@ export default function PartnerServicesPage() {
           <div className="mt-[20px] flex flex-col gap-[10px] sm:flex-row">
             <button
               type="button"
+              onClick={openProviderModal}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white shadow-md transition hover:bg-dark"
+            >
+              Valdyti paslaugų profilį
+            </button>
+
+            <button
+              type="button"
               onClick={() => router.push("/partner/paslaugu-uzklausos")}
-              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white shadow-md transition hover:bg-dark"
             >
               Peržiūrėti paslaugų užklausas
             </button>
@@ -385,6 +875,11 @@ export default function PartnerServicesPage() {
                 key={service.id}
                 className="rounded-[24px] bg-white p-[20px] shadow-sm"
               >
+                <ServiceImageCarousel
+                  images={service.images || []}
+                  name={service.name}
+                />
+
                 <div className="flex items-start justify-between gap-[12px]">
                   <div>
                     <h3 className="ui-font text-[20px] font-semibold text-slate-900">
@@ -426,10 +921,10 @@ export default function PartnerServicesPage() {
 
                   <div className="rounded-[18px] bg-slate-50 p-[12px]">
                     <p className="ui-font text-[12px] text-slate-500">
-                      Matomumas
+                      {getServiceScope(service).label}
                     </p>
                     <p className="mt-[4px] ui-font text-[15px] font-semibold text-slate-800">
-                      {service.is_global ? "Bendras katalogas" : "Vietinė"}
+                      {getServiceScope(service).value}
                     </p>
                   </div>
                 </div>
@@ -470,22 +965,10 @@ export default function PartnerServicesPage() {
                 <div className="mt-[18px] flex flex-col gap-[10px] sm:flex-row">
                   <button
                     type="button"
-                    onClick={() =>
-                      router.push(`/partner/paslaugos/${service.id}`)
-                    }
+                    onClick={() => openEditModal(service)}
                     className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
                   >
                     Valdyti paslaugą
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      router.push(`/partner/paslaugos/${service.id}/nuotraukos`)
-                    }
-                    className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Nuotraukos
                   </button>
 
                   <button
@@ -502,6 +985,409 @@ export default function PartnerServicesPage() {
           </div>
         )}
       </section>
+
+      {editingProvider && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
+          <section className="w-full max-w-[860px] rounded-[28px] bg-white p-[22px] shadow-xl">
+            <div className="mb-[18px] flex items-start justify-between gap-[16px]">
+              <div>
+                <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+                  Paslaugų profilis
+                </p>
+                <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
+                  Kontaktinė informacija
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeProviderModal}
+                className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
+                aria-label="Uždaryti"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProvider} className="space-y-[14px]">
+              <input
+                type="text"
+                value={providerForm.name}
+                onChange={(e) => updateProviderForm("name", e.target.value)}
+                placeholder="Paslaugų profilio pavadinimas"
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+              />
+
+              <textarea
+                value={providerForm.description}
+                onChange={(e) =>
+                  updateProviderForm("description", e.target.value)
+                }
+                rows={3}
+                placeholder="Trumpas profilio aprašymas"
+                className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
+              />
+
+              <div className="grid gap-[12px] md:grid-cols-2">
+                <input
+                  type="text"
+                  value={providerForm.address}
+                  onChange={(e) => updateProviderForm("address", e.target.value)}
+                  placeholder="Adresas"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+
+                <input
+                  type="text"
+                  value={providerForm.city}
+                  onChange={(e) => updateProviderForm("city", e.target.value)}
+                  placeholder="Miestas"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="grid gap-[12px] md:grid-cols-2">
+                <input
+                  type="email"
+                  value={providerForm.email}
+                  onChange={(e) => updateProviderForm("email", e.target.value)}
+                  placeholder="El. paštas"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+
+                <input
+                  type="tel"
+                  value={providerForm.phone}
+                  onChange={(e) => updateProviderForm("phone", e.target.value)}
+                  placeholder="Telefonas"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="grid gap-[12px] md:grid-cols-2">
+                <input
+                  type="text"
+                  value={providerForm.website}
+                  onChange={(e) => updateProviderForm("website", e.target.value)}
+                  placeholder="Svetainė"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+
+                <input
+                  type="text"
+                  value={providerForm.googleMapsUrl}
+                  onChange={(e) =>
+                    updateProviderForm("googleMapsUrl", e.target.value)
+                  }
+                  placeholder="Google Maps"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="grid gap-[12px] md:grid-cols-3">
+                <input
+                  type="text"
+                  value={providerForm.facebookUrl}
+                  onChange={(e) =>
+                    updateProviderForm("facebookUrl", e.target.value)
+                  }
+                  placeholder="Facebook"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+
+                <input
+                  type="text"
+                  value={providerForm.instagramUrl}
+                  onChange={(e) =>
+                    updateProviderForm("instagramUrl", e.target.value)
+                  }
+                  placeholder="Instagram"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+
+                <input
+                  type="text"
+                  value={providerForm.tiktokUrl}
+                  onChange={(e) =>
+                    updateProviderForm("tiktokUrl", e.target.value)
+                  }
+                  placeholder="TikTok"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex flex-col gap-[10px] sm:flex-row">
+                <button
+                  type="submit"
+                  disabled={savingProvider}
+                  className="ui-font inline-flex h-[48px] flex-1 items-center justify-center rounded-[16px] bg-primary px-[18px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {savingProvider ? "Saugoma..." : "Išsaugoti profilį"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeProviderModal}
+                  className="ui-font inline-flex h-[48px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[18px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Uždaryti
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {editingService && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
+          <section className="w-full max-w-[920px] rounded-[28px] bg-white p-[22px] shadow-xl">
+            <div className="mb-[18px] flex items-start justify-between gap-[16px]">
+              <div>
+                <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+                  Paslaugos valdymas
+                </p>
+                <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
+                  {editingService.name || "Paslauga"}
+                </h2>
+                <div className="mt-[10px] inline-flex flex-wrap items-center gap-[8px] rounded-[16px] bg-slate-50 px-[12px] py-[8px]">
+                  <span className="ui-font text-[12px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                    {getServiceScope(editingService).label}
+                  </span>
+                  <span className="ui-font text-[14px] font-semibold text-slate-900">
+                    {getServiceScope(editingService).value}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
+                aria-label="Uždaryti"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveService} className="space-y-[14px]">
+              <input
+                type="text"
+                value={editForm.name}
+                onChange={(e) => updateEditForm("name", e.target.value)}
+                placeholder="Paslaugos pavadinimas"
+                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+              />
+
+              <div className="grid gap-[12px] md:grid-cols-2">
+                <select
+                  value={editForm.serviceType}
+                  onChange={(e) =>
+                    updateEditForm("serviceType", e.target.value)
+                  }
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
+                >
+                  {SERVICE_TYPES.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={editForm.unitsOfMeasure}
+                  onChange={(e) =>
+                    updateEditForm("unitsOfMeasure", e.target.value)
+                  }
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
+                >
+                  {UNIT_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid gap-[12px] md:grid-cols-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editForm.pricePerUnit}
+                  onChange={(e) =>
+                    updateEditForm("pricePerUnit", e.target.value)
+                  }
+                  placeholder="Kaina"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+
+                {showsEditDurationField && (
+                  <input
+                    type="number"
+                    min="0"
+                    step="15"
+                    value={editForm.durationMinutes}
+                    onChange={(e) =>
+                      updateEditForm("durationMinutes", e.target.value)
+                    }
+                    placeholder="Trukmė minutėmis"
+                    className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                  />
+                )}
+              </div>
+
+              <div className="grid gap-[12px] md:grid-cols-2">
+                <label className="ui-font flex h-[48px] items-center gap-[10px] rounded-[16px] border border-slate-200 px-[14px] text-[14px] text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={editForm.isListed}
+                    onChange={(e) =>
+                      updateEditForm("isListed", e.target.checked)
+                    }
+                    className="h-[16px] w-[16px]"
+                  />
+                  Rodoma klientams
+                </label>
+
+                <label className="ui-font flex h-[48px] items-center gap-[10px] rounded-[16px] border border-slate-200 px-[14px] text-[14px] text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={editForm.isGlobal}
+                    onChange={(e) =>
+                      updateEditForm("isGlobal", e.target.checked)
+                    }
+                    className="h-[16px] w-[16px]"
+                  />
+                  Bendras katalogas
+                </label>
+              </div>
+
+              <textarea
+                value={editForm.shortDescription}
+                onChange={(e) =>
+                  updateEditForm("shortDescription", e.target.value)
+                }
+                rows={3}
+                placeholder="Trumpas aprašymas"
+                className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
+              />
+
+              <textarea
+                value={editForm.fullDescription}
+                onChange={(e) =>
+                  updateEditForm("fullDescription", e.target.value)
+                }
+                rows={4}
+                placeholder="Pilnas aprašymas"
+                className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
+              />
+
+              <textarea
+                value={editForm.includesText}
+                onChange={(e) => updateEditForm("includesText", e.target.value)}
+                rows={3}
+                placeholder="Kas įskaičiuota"
+                className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
+              />
+
+              {editForm.serviceType === "cake" && (
+                <textarea
+                  value={editForm.ingredients}
+                  onChange={(e) =>
+                    updateEditForm("ingredients", e.target.value)
+                  }
+                  rows={3}
+                  placeholder="Ingredientai"
+                  className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
+                />
+              )}
+
+              <textarea
+                value={editForm.notes}
+                onChange={(e) => updateEditForm("notes", e.target.value)}
+                rows={3}
+                placeholder="Pastabos"
+                className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
+              />
+
+              <div className="rounded-[18px] border border-slate-200 p-[14px]">
+                <p className="ui-font text-[14px] font-semibold text-slate-800">
+                  Nuotraukos
+                </p>
+
+                {editingService.images?.length > 0 && (
+                  <div className="mt-[12px] grid gap-[10px] sm:grid-cols-2 md:grid-cols-3">
+                    {editingService.images.map((image) => (
+                      <div
+                        key={image.id}
+                        className="overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50"
+                      >
+                        <ResponsiveImageFrame
+                          src={image.imageUrl}
+                          alt={image.alt_text || editForm.name}
+                          ratio="16 / 10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteServiceImage(image)}
+                          className="ui-font h-[38px] w-full bg-white text-[13px] font-semibold text-red-600 transition hover:bg-red-50"
+                        >
+                          Ištrinti
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) =>
+                    setEditPhotoFiles(Array.from(e.target.files || []))
+                  }
+                  className="ui-font mt-[12px] block w-full text-[14px] text-slate-600 file:mr-[14px] file:rounded-full file:border-0 file:bg-primary file:px-[16px] file:py-[10px] file:text-[14px] file:font-semibold file:text-white"
+                />
+
+                {editPhotoPreviews.length > 0 && (
+                  <div className="mt-[12px] grid gap-[10px] sm:grid-cols-2 md:grid-cols-3">
+                    {editPhotoPreviews.map((item) => (
+                      <div
+                        key={item.url}
+                        className="overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50"
+                      >
+                        <ResponsiveImageFrame
+                          src={item.url}
+                          alt={item.name}
+                          ratio="16 / 10"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-[10px] sm:flex-row">
+                <button
+                  type="submit"
+                  disabled={savingService}
+                  className="ui-font inline-flex h-[48px] flex-1 items-center justify-center rounded-[16px] bg-primary px-[18px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {savingService ? "Saugoma..." : "Išsaugoti pakeitimus"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="ui-font inline-flex h-[48px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[18px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Uždaryti
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       <ConfirmModal
         open={Boolean(serviceToDelete)}

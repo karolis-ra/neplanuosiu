@@ -4,6 +4,28 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import Loader from "../components/Loader";
+import ResponsiveImageFrame from "../components/ResponsiveImageFrame";
+
+const BUCKET = "public-images";
+
+function getPublicUrl(path) {
+  if (!path) return null;
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+function pickPrimaryImage(images) {
+  if (!images?.length) return null;
+
+  return [...images].sort((a, b) => {
+    if (a.is_cover && !b.is_cover) return -1;
+    if (!a.is_cover && b.is_cover) return 1;
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    return (a.position ?? 9999) - (b.position ?? 9999);
+  })[0];
+}
 
 export default function PartnerPage() {
   const router = useRouter();
@@ -66,7 +88,23 @@ export default function PartnerPage() {
           console.error("venue fetch error:", venueError.message);
         }
 
-        setVenue(venueRow || null);
+        let venueCoverUrl = null;
+
+        if (venueRow?.id) {
+          const { data: venueImages, error: venueImagesError } = await supabase
+            .from("images")
+            .select("path, is_cover, is_primary, position")
+            .eq("venue_id", venueRow.id)
+            .is("room_id", null);
+
+          if (venueImagesError) {
+            console.error("venue image fetch error:", venueImagesError.message);
+          }
+
+          venueCoverUrl = getPublicUrl(pickPrimaryImage(venueImages)?.path);
+        }
+
+        setVenue(venueRow ? { ...venueRow, coverUrl: venueCoverUrl } : null);
 
         const { data: providerRow, error: providerError } = await supabase
           .from("service_providers")
@@ -81,7 +119,41 @@ export default function PartnerPage() {
           console.error("provider fetch error:", providerError.message);
         }
 
-        setServiceProvider(providerRow || null);
+        let providerImageUrl = null;
+
+        if (providerRow?.id) {
+          const { data: serviceRows, error: servicesError } = await supabase
+            .from("services")
+            .select("id")
+            .eq("provider_id", providerRow.id);
+
+          if (servicesError) {
+            console.error("provider services fetch error:", servicesError.message);
+          }
+
+          const serviceIds = (serviceRows || []).map((service) => service.id);
+
+          if (serviceIds.length) {
+            const { data: serviceImages, error: serviceImagesError } =
+              await supabase
+                .from("service_images")
+                .select("path, is_primary, position")
+                .in("service_id", serviceIds);
+
+            if (serviceImagesError) {
+              console.error(
+                "provider service image fetch error:",
+                serviceImagesError.message,
+              );
+            }
+
+            providerImageUrl = getPublicUrl(pickPrimaryImage(serviceImages)?.path);
+          }
+        }
+
+        setServiceProvider(
+          providerRow ? { ...providerRow, coverUrl: providerImageUrl } : null,
+        );
       } catch (error) {
         console.error("partner page load error:", error);
         if (isMounted) {
@@ -127,6 +199,14 @@ export default function PartnerPage() {
 
       <section className="grid gap-[20px] md:grid-cols-2">
         <article className="rounded-[28px] bg-white p-[24px] shadow-sm">
+          <ResponsiveImageFrame
+            src={venue?.coverUrl}
+            alt={venue?.name || "Žaidimų erdvė"}
+            ratio="16 / 7"
+            className="mb-[20px] rounded-[22px]"
+            placeholder="Žaidimų erdvės nuotrauka"
+          />
+
           <div>
             <h2 className="ui-font text-[22px] font-semibold text-slate-900">
               Žaidimų erdvė
@@ -178,7 +258,7 @@ export default function PartnerPage() {
                   onClick={() => router.push("/partner/rezervacijos")}
                   className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Peržiūrėti rezervacijas
+                  Rezervacijos
                 </button>
               </>
             )}
@@ -186,6 +266,14 @@ export default function PartnerPage() {
         </article>
 
         <article className="rounded-[28px] bg-white p-[24px] shadow-sm">
+          <ResponsiveImageFrame
+            src={serviceProvider?.coverUrl}
+            alt={serviceProvider?.name || "Paslaugos"}
+            ratio="16 / 7"
+            className="mb-[20px] rounded-[22px]"
+            placeholder="Paslaugos nuotrauka"
+          />
+
           <div>
             <h2 className="ui-font text-[22px] font-semibold text-slate-900">
               Paslaugos
@@ -236,7 +324,7 @@ export default function PartnerPage() {
                   onClick={() => router.push("/partner/paslaugu-uzklausos")}
                   className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Peržiūrėti užklausas
+                  Rezervacijos
                 </button>
               </>
             )}

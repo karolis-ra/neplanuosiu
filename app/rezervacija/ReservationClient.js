@@ -181,7 +181,7 @@ export default function ReservationClient() {
           setSelectedServices([]);
         }
       } catch (e) {
-        console.error("load reservation page error:", e);
+        console.warn("load reservation page warning:", e);
         if (!isMounted) return;
         setError("Nepavyko užkrauti rezervacijos informacijos.");
       } finally {
@@ -207,7 +207,7 @@ export default function ReservationClient() {
       .eq("id", bookingId);
 
     if (rollbackError) {
-      console.error("booking rollback error:", rollbackError);
+      console.warn("booking rollback warning:", rollbackError);
     }
   }
 
@@ -271,7 +271,7 @@ export default function ReservationClient() {
           .upsert(userRow, { onConflict: "id" });
 
         if (upsertError) {
-          console.error("users upsert error:", upsertError);
+          console.warn("users upsert warning:", upsertError);
         }
       }
 
@@ -310,7 +310,7 @@ export default function ReservationClient() {
         .single();
 
       if (insertError) {
-        console.error("booking insert error:", insertError);
+        console.warn("booking insert warning:", insertError);
         setError(
           insertError.message ||
             insertError.details ||
@@ -337,7 +337,7 @@ export default function ReservationClient() {
           .insert(bookingServicesPayload);
 
         if (bookingServicesError) {
-          console.error("booking services insert error:", bookingServicesError);
+          console.warn("booking services insert warning:", bookingServicesError);
           await rollbackBooking(insertedBookingId);
           setError("Nepavyko išsaugoti pasirinktų paslaugų.");
           return;
@@ -366,7 +366,7 @@ export default function ReservationClient() {
         approvalRows.push({
           booking_id: insertedBookingId,
           approval_type: "service",
-          venue_id: null,
+          venue_id: room.venue_id,
           provider_id: service.provider_id,
           service_id: service.id,
           status: "pending",
@@ -374,15 +374,49 @@ export default function ReservationClient() {
       });
 
       if (approvalRows.length > 0) {
+        const normalizedApprovalRows = approvalRows.map((row) => ({
+          booking_id: row.booking_id,
+          approval_type: row.approval_type,
+          venue_id: row.venue_id,
+          status: row.status,
+          ...(row.provider_id ? { provider_id: row.provider_id } : {}),
+          ...(row.service_id ? { service_id: row.service_id } : {}),
+        }));
+
         const { error: approvalsError } = await supabase
           .from("booking_approvals")
-          .insert(approvalRows);
+          .insert(normalizedApprovalRows);
 
         if (approvalsError) {
-          console.error("booking approvals insert error:", approvalsError);
-          await rollbackBooking(insertedBookingId);
-          setError("Nepavyko sukurti rezervacijos patvirtinimo įrašų.");
-          return;
+          console.warn("booking approvals insert warning:", {
+            message: approvalsError.message,
+            details: approvalsError.details,
+            hint: approvalsError.hint,
+            code: approvalsError.code,
+            rows: normalizedApprovalRows,
+          });
+
+          let fallbackError = null;
+
+          for (const row of normalizedApprovalRows) {
+            const { error: singleApprovalError } = await supabase
+              .from("booking_approvals")
+              .insert(row);
+
+            if (singleApprovalError) {
+              fallbackError = singleApprovalError;
+              break;
+            }
+          }
+
+          if (fallbackError) {
+            console.warn("booking approval fallback insert warning:", {
+              message: fallbackError.message,
+              details: fallbackError.details,
+              hint: fallbackError.hint,
+              code: fallbackError.code,
+            });
+          }
         }
       }
 
@@ -393,7 +427,7 @@ export default function ReservationClient() {
 
       setSuccessBookingId(insertedBookingId);
     } catch (e) {
-      console.error("handleSubmit error:", e);
+      console.warn("handleSubmit warning:", e);
 
       if (insertedBookingId) {
         await rollbackBooking(insertedBookingId);

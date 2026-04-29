@@ -53,6 +53,22 @@ function formatPrice(value) {
   return `${Number(value).toFixed(2)} €`;
 }
 
+function sortRequestRows(rows) {
+  return [...(rows || [])].sort((a, b) => {
+    const dateA = a?.booking?.event_date || "";
+    const dateB = b?.booking?.event_date || "";
+    if (dateA < dateB) return -1;
+    if (dateA > dateB) return 1;
+
+    const timeA = a?.booking?.start_time || "";
+    const timeB = b?.booking?.start_time || "";
+    if (timeA < timeB) return -1;
+    if (timeA > timeB) return 1;
+
+    return 0;
+  });
+}
+
 async function recalculateBookingStatus(bookingId) {
   const { data: approvalRows, error: approvalsError } = await supabase
     .from("booking_approvals")
@@ -193,21 +209,84 @@ export default function PartnerServiceRequestsPage() {
           throw approvalsError;
         }
 
-        const sortedRows = [...(rows || [])].sort((a, b) => {
-          const dateA = a?.booking?.event_date || "";
-          const dateB = b?.booking?.event_date || "";
-          if (dateA < dateB) return -1;
-          if (dateA > dateB) return 1;
+        const approvalRows = rows || [];
+        const approvalKeys = new Set(
+          approvalRows.map((row) => `${row.booking_id}:${row.service_id}`),
+        );
 
-          const timeA = a?.booking?.start_time || "";
-          const timeB = b?.booking?.start_time || "";
-          if (timeA < timeB) return -1;
-          if (timeA > timeB) return 1;
+        const { data: bookingServiceRows, error: bookingServicesError } =
+          await supabase
+            .from("booking_services")
+            .select(
+              `
+              id,
+              booking_id,
+              service_id,
+              start_time,
+              end_time,
+              price_per_unit,
+              units_of_measure,
+              service:services!inner (
+                id,
+                provider_id,
+                name,
+                service_type,
+                short_description,
+                duration_minutes
+              ),
+              booking:bookings (
+                id,
+                status,
+                event_date,
+                start_time,
+                end_time,
+                created_at,
+                guest_name,
+                guest_email,
+                guest_phone,
+                note,
+                num_children,
+                num_adults,
+                total_price,
+                total_amount,
+                room:rooms (
+                  id,
+                  name,
+                  city,
+                  venue_id
+                )
+              )
+            `,
+            )
+            .eq("service.provider_id", providerRow.id);
 
-          return 0;
-        });
+        if (!isMounted) return;
 
-        setApprovalRows(sortedRows);
+        if (bookingServicesError) {
+          throw bookingServicesError;
+        }
+
+        const fallbackRows = (bookingServiceRows || [])
+          .filter((row) => row.service?.provider_id === providerRow.id)
+          .filter((row) => !approvalKeys.has(`${row.booking_id}:${row.service_id}`))
+          .map((row) => ({
+            id: `booking-service-${row.id}`,
+            booking_service_id: row.id,
+            booking_id: row.booking_id,
+            approval_type: "service",
+            venue_id: null,
+            provider_id: providerRow.id,
+            service_id: row.service_id,
+            status: row.booking?.status || "pending",
+            note: null,
+            responded_at: null,
+            created_at: row.booking?.created_at || null,
+            service: row.service,
+            booking: row.booking,
+            isFallback: true,
+          }));
+
+        setApprovalRows(sortRequestRows([...approvalRows, ...fallbackRows]));
       } catch (e) {
         console.error("service requests load error:", e);
         if (isMounted) {
@@ -227,26 +306,61 @@ export default function PartnerServiceRequestsPage() {
     };
   }, [router]);
 
-  async function updateApprovalStatus(approvalId, bookingId, nextStatus) {
+  async function updateApprovalStatus(row, bookingId, nextStatus) {
+    const approvalId = row.id;
     setProcessingId(approvalId);
     setErrorMsg("");
 
     try {
       const nowIso = new Date().toISOString();
+      let nextBookingStatus = nextStatus;
 
-      const { error: approvalUpdateError } = await supabase
-        .from("booking_approvals")
-        .update({
-          status: nextStatus,
-          responded_at: nowIso,
-        })
-        .eq("id", approvalId);
+      if (row.isFallback) {
+        const { error: approvalInsertError } = await supabase
+          .from("booking_approvals")
+          .insert({
+            booking_id: bookingId,
+            approval_type: "service",
+            venue_id: row.booking?.room?.venue_id || null,
+            provider_id: row.provider_id,
+            service_id: row.service_id,
+            status: nextStatus,
+            responded_at: nowIso,
+          });
 
-      if (approvalUpdateError) {
-        throw approvalUpdateError;
+        if (approvalInsertError) {
+          console.warn("fallback service approval insert warning:", {
+            message: approvalInsertError.message,
+            details: approvalInsertError.details,
+            hint: approvalInsertError.hint,
+            code: approvalInsertError.code,
+          });
+
+          const { error: bookingStatusError } = await supabase
+            .from("bookings")
+            .update({ status: nextStatus })
+            .eq("id", bookingId);
+
+          if (bookingStatusError) {
+            throw bookingStatusError;
+          }
+        } else {
+          nextBookingStatus = await recalculateBookingStatus(bookingId);
+        }
+      } else {
+        const { error: approvalUpdateError } = await supabase
+          .from("booking_approvals")
+          .update({
+            status: nextStatus,
+            responded_at: nowIso,
+          })
+          .eq("id", approvalId);
+
+        if (approvalUpdateError) {
+          throw approvalUpdateError;
+        }
+        nextBookingStatus = await recalculateBookingStatus(bookingId);
       }
-
-      const nextBookingStatus = await recalculateBookingStatus(bookingId);
 
       setApprovalRows((prev) =>
         prev.map((row) =>
@@ -494,7 +608,7 @@ export default function PartnerServiceRequestsPage() {
                           disabled={isProcessing}
                           onClick={() =>
                             updateApprovalStatus(
-                              row.id,
+                              row,
                               booking.id,
                               "confirmed",
                             )
@@ -508,7 +622,7 @@ export default function PartnerServiceRequestsPage() {
                           type="button"
                           disabled={isProcessing}
                           onClick={() =>
-                            updateApprovalStatus(row.id, booking.id, "rejected")
+                            updateApprovalStatus(row, booking.id, "rejected")
                           }
                           className="ui-font inline-flex h-[48px] items-center justify-center rounded-[16px] border border-red-200 bg-white px-[16px] text-[14px] font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
                         >

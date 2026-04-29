@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
@@ -10,6 +9,7 @@ import {
   isProviderAvailableForReservation,
 } from "../../lib/serviceAvailability";
 import { mapServiceImagesWithUrls } from "../../lib/serviceImageUtils";
+import ResponsiveImageFrame from "../../components/ResponsiveImageFrame";
 import ServiceDetailsModal from "../../components/ServiceDetailsModal";
 
 function formatPrice(value) {
@@ -29,24 +29,11 @@ function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
           : "border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50"
       }`}
     >
-      <div className="overflow-hidden bg-slate-100">
-        {item.image_url ? (
-          <Image
-            src={item.image_url}
-            alt={item.image_alt || item.name}
-            width={800}
-            height={540}
-            unoptimized
-            className="h-[180px] w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-[180px] items-center justify-center">
-            <span className="ui-font text-[14px] text-slate-400">
-              Nuotrauka ruošiama
-            </span>
-          </div>
-        )}
-      </div>
+      <ResponsiveImageFrame
+        src={item.image_url}
+        alt={item.image_alt || item.name}
+        ratio="16 / 9"
+      />
 
       <div className="p-[16px]">
         <div className="mb-[10px] flex items-start justify-between gap-[12px]">
@@ -95,7 +82,7 @@ function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
             className={`ui-font inline-flex h-[42px] items-center justify-center rounded-[16px] px-[12px] text-[14px] font-medium transition ${
               isSelected
                 ? "bg-primary text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                : "bg-primary text-white shadow-sm hover:bg-dark"
             }`}
           >
             {isSelected ? "Pasirinkta" : "Pasirinkti"}
@@ -262,6 +249,7 @@ export default function ServicesSelectionClient() {
             service_type,
             price_per_unit,
             units_of_measure,
+            duration_minutes,
             is_global,
             is_listed,
             sort_order,
@@ -284,11 +272,25 @@ export default function ServicesSelectionClient() {
         if (serviceError) throw serviceError;
 
         const scopedServices = (serviceRows || []).filter(
-          (item) =>
-            (item.service_type === "decorations" ||
+          (item) => {
+            const isSupportedType =
+              item.service_type === "decorations" ||
               item.service_type === "animator" ||
-              item.service_type === "cake") &&
-            item.provider?.is_published === true,
+              item.service_type === "cake";
+            const isCurrentRoomService = item.room_id === roomId;
+            const isCurrentVenueService =
+              venueId &&
+              item.venue_id === venueId &&
+              !item.room_id &&
+              !item.is_global;
+
+            return (
+              isSupportedType &&
+              (isCurrentRoomService ||
+                isCurrentVenueService ||
+                item.provider?.is_published === true)
+            );
+          },
         );
 
         if (!scopedServices.length) {
@@ -413,8 +415,16 @@ export default function ServicesSelectionClient() {
         });
 
         const filtered = scopedServices
-          .filter((service) =>
-            isProviderAvailableForReservation({
+          .filter((service) => {
+            const needsProviderAvailability =
+              service.service_type === "animator" ||
+              Number(service.duration_minutes || 0) > 0;
+
+            if (!needsProviderAvailability) {
+              return true;
+            }
+
+            return isProviderAvailableForReservation({
               providerAvailabilityRows: (availabilityRes.data || []).filter(
                 (item) => item.provider_id === service.provider_id,
               ),
@@ -427,8 +437,8 @@ export default function ServicesSelectionClient() {
               weekday,
               startTime: time,
               endTime: reservation.endTime,
-            }),
-          )
+            });
+          })
           .map((service) => {
             let originLabel = "Platformos partneris";
             let origin = "global";
@@ -436,7 +446,7 @@ export default function ServicesSelectionClient() {
             if (service.room_id === roomId) {
               originLabel = "Šio kambario pasiūlymas";
               origin = "room";
-            } else if (venueId && service.venue_id === venueId) {
+            } else if (venueId && service.venue_id === venueId && !service.room_id) {
               originLabel = "Šios vietos pasiūlymas";
               origin = "venue";
             }

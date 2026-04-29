@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import FavoriteButton from "./FavoriteButton";
+import ResponsiveImageFrame from "./ResponsiveImageFrame";
 import { supabase } from "../lib/supabaseClient";
 
 export default function RoomCard({ room, onFavoriteChange }) {
@@ -48,26 +49,21 @@ export default function RoomCard({ room, onFavoriteChange }) {
 
   return (
     <article className="relative flex flex-col overflow-hidden rounded-3xl bg-white shadow-sm">
-      <div className="relative h-40 bg-slate-200">
+      <div className="relative bg-slate-200">
         <FavoriteButton roomId={room.id} onToggle={handleToggle} />
 
         <Link
           href={`/kambariai/${room.id}`}
-          className="block h-full w-full"
+          className="block w-full"
           aria-label={`Atverti ${room.name} puslapi`}
         >
-          {primaryImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={primaryImageUrl}
-              alt={room.name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="ui-font flex h-full items-center justify-center bg-gradient-to-br from-primary to-dark text-xs text-white">
-              Nuotrauka netrukus
-            </div>
-          )}
+          <ResponsiveImageFrame
+            src={primaryImageUrl}
+            alt={room.name}
+            ratio="4 / 3"
+            className="rounded-t-[24px]"
+            placeholder="Nuotrauka netrukus"
+          />
         </Link>
       </div>
 

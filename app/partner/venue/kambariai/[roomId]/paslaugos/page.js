@@ -1,16 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../../lib/supabaseClient";
+import { mapServiceImagesWithUrls } from "../../../../../lib/serviceImageUtils";
 import Loader from "../../../../../components/Loader";
 import ConfirmModal from "../../../../../components/ConfirmModal";
+import ResponsiveImageFrame from "../../../../../components/ResponsiveImageFrame";
+
+const BUCKET = "public-images";
 
 const SERVICE_TYPES = [
   { value: "decorations", label: "Dekoracijos" },
   { value: "animator", label: "Animatorius" },
   { value: "cake", label: "Tortas" },
 ];
+
+const SERVICE_TYPES_WITH_DURATION = ["animator"];
 
 const UNIT_OPTIONS = [
   { value: "unit", label: "vnt." },
@@ -38,6 +44,14 @@ function formatPrice(value) {
   return `${Number(value || 0).toFixed(2)} €`;
 }
 
+function sanitizeFileName(fileName) {
+  return String(fileName || "photo")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-");
+}
+
 export default function RoomServicesManagePage() {
   const params = useParams();
   const router = useRouter();
@@ -53,7 +67,27 @@ export default function RoomServicesManagePage() {
   const [provider, setProvider] = useState(null);
   const [services, setServices] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [photoFiles, setPhotoFiles] = useState([]);
   const [serviceToDelete, setServiceToDelete] = useState(null);
+
+  const showsDurationField = SERVICE_TYPES_WITH_DURATION.includes(
+    form.serviceType,
+  );
+
+  const photoPreviews = useMemo(
+    () =>
+      photoFiles.map((file) => ({
+        name: file.name,
+        url: URL.createObjectURL(file),
+      })),
+    [photoFiles],
+  );
+
+  useEffect(() => {
+    return () => {
+      photoPreviews.forEach((item) => URL.revokeObjectURL(item.url));
+    };
+  }, [photoPreviews]);
 
   const loadData = useCallback(async (userId) => {
     const { data: roomRow, error: roomError } = await supabase
@@ -101,9 +135,41 @@ export default function RoomServicesManagePage() {
 
     if (servicesError) throw servicesError;
 
+    const serviceIds = (serviceRows || []).map((service) => service.id);
+    let imagesByServiceId = new Map();
+
+    if (serviceIds.length) {
+      const { data: serviceImagesRows, error: serviceImagesError } =
+        await supabase
+          .from("service_images")
+          .select("id, service_id, path, alt_text, is_primary, position")
+          .in("service_id", serviceIds)
+          .order("position", { ascending: true });
+
+      if (serviceImagesError) throw serviceImagesError;
+
+      const mappedImages = mapServiceImagesWithUrls({
+        supabase,
+        images: serviceImagesRows || [],
+      });
+
+      imagesByServiceId = mappedImages.reduce((acc, image) => {
+        if (!acc.has(image.service_id)) {
+          acc.set(image.service_id, []);
+        }
+        acc.get(image.service_id).push(image);
+        return acc;
+      }, new Map());
+    }
+
     setRoom(roomRow);
     setProvider(providerRow || null);
-    setServices(serviceRows || []);
+    setServices(
+      (serviceRows || []).map((service) => ({
+        ...service,
+        images: imagesByServiceId.get(service.id) || [],
+      })),
+    );
   }, [roomId, router]);
 
   useEffect(() => {
@@ -143,7 +209,13 @@ export default function RoomServicesManagePage() {
   }, [loadData, roomId, router]);
 
   function updateForm(field, value) {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "serviceType" && !SERVICE_TYPES_WITH_DURATION.includes(value)
+        ? { durationMinutes: "" }
+        : {}),
+    }));
   }
 
   function startEdit(service) {
@@ -160,10 +232,12 @@ export default function RoomServicesManagePage() {
       ingredients: service.ingredients || "",
       notes: service.notes || "",
     });
+    setPhotoFiles([]);
   }
 
   function resetForm() {
     setForm(EMPTY_FORM);
+    setPhotoFiles([]);
   }
 
   async function handleSubmit(e) {
@@ -172,10 +246,17 @@ export default function RoomServicesManagePage() {
     setErrorMsg("");
     setSuccessMsg("");
 
+    const serviceId = form.id || crypto.randomUUID();
+    const uploadedPaths = [];
+    const isNewService = !form.id;
+
     try {
       if (!provider?.id || !room?.venue_id) {
         throw new Error("missing_provider");
       }
+
+      const existingImageCount =
+        services.find((service) => service.id === form.id)?.images?.length || 0;
 
       const payload = {
         provider_id: provider.id,
@@ -193,8 +274,11 @@ export default function RoomServicesManagePage() {
         price_per_unit:
           form.pricePerUnit === "" ? null : Number(form.pricePerUnit),
         units_of_measure: form.unitsOfMeasure,
-        duration_minutes:
-          form.durationMinutes === "" ? null : Number(form.durationMinutes),
+        duration_minutes: showsDurationField
+          ? form.durationMinutes === ""
+            ? null
+            : Number(form.durationMinutes)
+          : null,
         is_global: false,
         is_listed: true,
       };
@@ -207,8 +291,42 @@ export default function RoomServicesManagePage() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("services").insert(payload);
+        const { error } = await supabase
+          .from("services")
+          .insert({ ...payload, id: serviceId });
         if (error) throw error;
+      }
+
+      for (let index = 0; index < photoFiles.length; index += 1) {
+        const file = photoFiles[index];
+        const path = `services/${provider.id}/${serviceId}/${Date.now()}-${index}-${sanitizeFileName(file.name)}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        uploadedPaths.push(path);
+      }
+
+      if (uploadedPaths.length) {
+        const imageRows = uploadedPaths.map((path, index) => ({
+          service_id: serviceId,
+          path,
+          alt_text: form.name.trim() || null,
+          is_primary: existingImageCount === 0 && index === 0,
+          position: existingImageCount + index,
+        }));
+
+        const { error: serviceImagesError } = await supabase
+          .from("service_images")
+          .insert(imageRows);
+
+        if (serviceImagesError) throw serviceImagesError;
       }
 
       const {
@@ -219,6 +337,16 @@ export default function RoomServicesManagePage() {
       setSuccessMsg("Kambario paslaugos issaugotos.");
     } catch (error) {
       console.error("save room service error:", error);
+      if (uploadedPaths.length) {
+        await supabase.storage.from(BUCKET).remove(uploadedPaths);
+        await supabase
+          .from("service_images")
+          .delete()
+          .in("path", uploadedPaths);
+      }
+      if (isNewService) {
+        await supabase.from("services").delete().eq("id", serviceId);
+      }
       setErrorMsg(
         provider?.id
           ? "Nepavyko issaugoti kambario paslaugos."
@@ -330,6 +458,23 @@ export default function RoomServicesManagePage() {
                   key={service.id}
                   className="rounded-[20px] border border-slate-200 p-[16px]"
                 >
+                  {service.images?.length > 0 && (
+                    <div className="mb-[12px] flex gap-[8px] overflow-x-auto">
+                      {service.images.slice(0, 4).map((image) => (
+                        <div
+                          key={image.id}
+                          className="h-[72px] w-[96px] shrink-0 overflow-hidden rounded-[14px] bg-slate-100"
+                        >
+                          <ResponsiveImageFrame
+                            src={image.imageUrl}
+                            alt={image.alt_text || service.name || "Paslauga"}
+                            ratio="4 / 3"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex items-start justify-between gap-[12px]">
                     <div>
                       <h3 className="ui-font text-[18px] font-semibold text-slate-900">
@@ -441,15 +586,19 @@ export default function RoomServicesManagePage() {
                 className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
               />
 
-              <input
-                type="number"
-                min="0"
-                step="15"
-                value={form.durationMinutes}
-                onChange={(e) => updateForm("durationMinutes", e.target.value)}
-                placeholder="Trukme minutemis"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
+              {showsDurationField && (
+                <input
+                  type="number"
+                  min="0"
+                  step="15"
+                  value={form.durationMinutes}
+                  onChange={(e) =>
+                    updateForm("durationMinutes", e.target.value)
+                  }
+                  placeholder="Trukme minutemis"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              )}
             </div>
 
             <textarea
@@ -493,6 +642,48 @@ export default function RoomServicesManagePage() {
               placeholder="Pastabos"
               className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
             />
+
+            <div className="space-y-[10px] rounded-[18px] border border-slate-200 p-[14px]">
+              <div>
+                <p className="ui-font text-[14px] font-semibold text-slate-800">
+                  Nuotraukos
+                </p>
+                {form.id &&
+                  services.find((service) => service.id === form.id)?.images
+                    ?.length > 0 && (
+                    <p className="ui-font mt-[4px] text-[12px] text-slate-500">
+                      Naujos nuotraukos bus pridėtos prie esamų.
+                    </p>
+                  )}
+              </div>
+
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) =>
+                  setPhotoFiles(Array.from(e.target.files || []))
+                }
+                className="ui-font block w-full text-[14px] text-slate-600 file:mr-[14px] file:rounded-full file:border-0 file:bg-primary file:px-[16px] file:py-[10px] file:text-[14px] file:font-semibold file:text-white"
+              />
+
+              {photoPreviews.length > 0 && (
+                <div className="grid gap-[10px] sm:grid-cols-2">
+                  {photoPreviews.map((item) => (
+                    <div
+                      key={item.url}
+                      className="overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50"
+                    >
+                      <ResponsiveImageFrame
+                        src={item.url}
+                        alt={item.name}
+                        ratio="16 / 10"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <button
               type="submit"

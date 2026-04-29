@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import ResponsiveImageFrame from "../ResponsiveImageFrame";
 
 export default function RoomGallery({ images = [], roomName }) {
   const [current, setCurrent] = useState(0);
 
   if (!images.length) {
     return (
-      <div className="flex h-[300px] w-full items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-dark text-white">
-        Nuotrauka netrukus
-      </div>
+      <ResponsiveImageFrame
+        ratio="16 / 9"
+        className="rounded-3xl"
+        placeholder="Nuotrauka netrukus"
+      />
     );
   }
 
@@ -20,7 +23,12 @@ export default function RoomGallery({ images = [], roomName }) {
   return (
     <div className="w-full">
       {/* MAIN IMAGE SLIDER */}
-      <div className="relative h-[360px] w-full overflow-hidden rounded-3xl bg-slate-200">
+      <ResponsiveImageFrame
+        src={images[current]}
+        alt={roomName}
+        ratio="16 / 9"
+        className="rounded-3xl"
+      >
         {/* Left arrow */}
         <button
           onClick={prev}
@@ -37,31 +45,29 @@ export default function RoomGallery({ images = [], roomName }) {
           ›
         </button>
 
-        {/* BIG IMAGE */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={images[current]}
-          alt={roomName}
-          className="h-full w-full object-cover"
-        />
-      </div>
+      </ResponsiveImageFrame>
 
       {/* THUMBNAILS */}
       <div className="mt-4 flex justify-center gap-3">
         {images.map((img, index) => (
-          <div
+          <button
+            type="button"
             key={index}
             onClick={() => setCurrent(index)}
-            className={`cursor-pointer overflow-hidden rounded-xl border-2 transition
+            className={`overflow-hidden rounded-xl border-2 transition
               ${
                 current === index
                   ? "border-primary"
                   : "border-transparent opacity-60 hover:opacity-100"
               }`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={img} alt="" className="h-16 w-20 object-cover" />
-          </div>
+            <ResponsiveImageFrame
+              src={img}
+              alt=""
+              ratio="5 / 4"
+              className="h-16 w-20"
+            />
+          </button>
         ))}
       </div>
     </div>
