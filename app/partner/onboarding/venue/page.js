@@ -143,7 +143,8 @@ export default function VenueOnboardingPage() {
         max: 180,
       });
 
-      const resolvedLatitude = parsedLatitude ?? urlCoordinates?.latitude ?? null;
+      const resolvedLatitude =
+        parsedLatitude ?? urlCoordinates?.latitude ?? null;
       const resolvedLongitude =
         parsedLongitude ?? urlCoordinates?.longitude ?? null;
 
@@ -431,9 +432,9 @@ export default function VenueOnboardingPage() {
           </div>
 
           <p className="ui-font text-[13px] leading-[21px] text-slate-500">
-            Jei norite tikslaus žemėlapio, įveskite platumą ir ilgumą ranka.
-            Jei šiuos laukus paliksite tuščius, bandysime koordinates ištraukti
-            iš „Google Maps“ nuorodos.
+            Jei norite tikslaus žemėlapio, įveskite platumą ir ilgumą ranka. Jei
+            šiuos laukus paliksite tuščius, bandysime koordinates ištraukti iš
+            „Google Maps“ nuorodos.
           </p>
 
           <div className="space-y-[10px]">
@@ -466,7 +467,7 @@ export default function VenueOnboardingPage() {
             disabled={submitting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {submitting ? "Saugoma..." : "Testi ir prideti kambari"}
+            {submitting ? "Saugoma..." : "Tęsti ir pridėti kambari"}
           </button>
         </form>
       </section>

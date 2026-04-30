@@ -17,6 +17,10 @@ function resolveRouteByRole(role, fallbackPath = "/account") {
     return "/partner";
   }
 
+  if (role === "admin") {
+    return "/admin";
+  }
+
   return "/account";
 }
 

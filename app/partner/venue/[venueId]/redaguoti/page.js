@@ -202,7 +202,8 @@ export default function EditVenuePage() {
         max: 180,
       });
 
-      const resolvedLatitude = parsedLatitude ?? urlCoordinates?.latitude ?? null;
+      const resolvedLatitude =
+        parsedLatitude ?? urlCoordinates?.latitude ?? null;
       const resolvedLongitude =
         parsedLongitude ?? urlCoordinates?.longitude ?? null;
 
@@ -306,7 +307,7 @@ export default function EditVenuePage() {
       setSuccessMsg("Erdves informacija issaugota.");
     } catch (error) {
       console.error("save venue error:", error);
-      setErrorMsg("Nepavyko issaugoti erdves informacijos.");
+      setErrorMsg("Nepavyko išsaugoti erdves informacijos.");
     } finally {
       setSubmitting(false);
     }
@@ -669,7 +670,7 @@ export default function EditVenuePage() {
           onClick={() => router.push("/partner/venue")}
           className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
         >
-          Grizti i valdyma
+          Grįžti i valdyma
         </button>
       </div>
 
@@ -891,7 +892,7 @@ export default function EditVenuePage() {
             disabled={submitting || deleting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {submitting ? "Saugoma..." : "Issaugoti pakeitimus"}
+            {submitting ? "Saugoma..." : "išsaugoti pakeitimus"}
           </button>
 
           <button
@@ -908,7 +909,7 @@ export default function EditVenuePage() {
       <ConfirmModal
         open={deleteModalOpen}
         title="Istrinti zaidimu erdve?"
-        message="Bus istrinti visi susieti kambariai, ju nuotraukos, paslaugos ir kita su sia erdve susijusi informacija. Ar tikrai norite testi?"
+        message="Bus istrinti visi susieti kambariai, ju nuotraukos, paslaugos ir kita su sia erdve susijusi informacija. Ar tikrai norite Tęsti?"
         confirmLabel="Taip, istrinti"
         cancelLabel="Ne, palikti"
         loading={deleting}

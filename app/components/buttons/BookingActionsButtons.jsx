@@ -91,7 +91,7 @@ export default function BookingActionButtons({
 
       {userRole === "venue_owner" ? (
         <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
-          Zaidimu erdves valdytojas negali teikti rezervacijos uzklausos is
+          Zaidimu erdves valdytojas negali teikti rezervacijos užklausos is
           kliento srauto.
         </p>
       ) : (

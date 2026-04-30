@@ -89,88 +89,91 @@ export default function RoomServicesManagePage() {
     };
   }, [photoPreviews]);
 
-  const loadData = useCallback(async (userId) => {
-    const { data: roomRow, error: roomError } = await supabase
-      .from("rooms")
-      .select("id, name, venue_id")
-      .eq("id", roomId)
-      .maybeSingle();
+  const loadData = useCallback(
+    async (userId) => {
+      const { data: roomRow, error: roomError } = await supabase
+        .from("rooms")
+        .select("id, name, venue_id")
+        .eq("id", roomId)
+        .maybeSingle();
 
-    if (roomError) throw roomError;
-    if (!roomRow) {
-      router.replace("/partner/venue");
-      return;
-    }
+      if (roomError) throw roomError;
+      if (!roomRow) {
+        router.replace("/partner/venue");
+        return;
+      }
 
-    const { data: venueRow, error: venueError } = await supabase
-      .from("venues")
-      .select("id, owner_id")
-      .eq("id", roomRow.venue_id)
-      .eq("owner_id", userId)
-      .maybeSingle();
+      const { data: venueRow, error: venueError } = await supabase
+        .from("venues")
+        .select("id, owner_id")
+        .eq("id", roomRow.venue_id)
+        .eq("owner_id", userId)
+        .maybeSingle();
 
-    if (venueError) throw venueError;
-    if (!venueRow) {
-      router.replace("/partner/venue");
-      return;
-    }
+      if (venueError) throw venueError;
+      if (!venueRow) {
+        router.replace("/partner/venue");
+        return;
+      }
 
-    const { data: providerRow, error: providerError } = await supabase
-      .from("service_providers")
-      .select("id, name")
-      .eq("owner_id", userId)
-      .limit(1)
-      .maybeSingle();
+      const { data: providerRow, error: providerError } = await supabase
+        .from("service_providers")
+        .select("id, name")
+        .eq("owner_id", userId)
+        .limit(1)
+        .maybeSingle();
 
-    if (providerError) throw providerError;
+      if (providerError) throw providerError;
 
-    const { data: serviceRows, error: servicesError } = await supabase
-      .from("services")
-      .select(
-        "id, name, service_type, price_per_unit, units_of_measure, duration_minutes, short_description, full_description, includes_text, ingredients, notes",
-      )
-      .eq("room_id", roomId)
-      .order("service_type", { ascending: true })
-      .order("created_at", { ascending: true });
+      const { data: serviceRows, error: servicesError } = await supabase
+        .from("services")
+        .select(
+          "id, name, service_type, price_per_unit, units_of_measure, duration_minutes, short_description, full_description, includes_text, ingredients, notes",
+        )
+        .eq("room_id", roomId)
+        .order("service_type", { ascending: true })
+        .order("created_at", { ascending: true });
 
-    if (servicesError) throw servicesError;
+      if (servicesError) throw servicesError;
 
-    const serviceIds = (serviceRows || []).map((service) => service.id);
-    let imagesByServiceId = new Map();
+      const serviceIds = (serviceRows || []).map((service) => service.id);
+      let imagesByServiceId = new Map();
 
-    if (serviceIds.length) {
-      const { data: serviceImagesRows, error: serviceImagesError } =
-        await supabase
-          .from("service_images")
-          .select("id, service_id, path, alt_text, is_primary, position")
-          .in("service_id", serviceIds)
-          .order("position", { ascending: true });
+      if (serviceIds.length) {
+        const { data: serviceImagesRows, error: serviceImagesError } =
+          await supabase
+            .from("service_images")
+            .select("id, service_id, path, alt_text, is_primary, position")
+            .in("service_id", serviceIds)
+            .order("position", { ascending: true });
 
-      if (serviceImagesError) throw serviceImagesError;
+        if (serviceImagesError) throw serviceImagesError;
 
-      const mappedImages = mapServiceImagesWithUrls({
-        supabase,
-        images: serviceImagesRows || [],
-      });
+        const mappedImages = mapServiceImagesWithUrls({
+          supabase,
+          images: serviceImagesRows || [],
+        });
 
-      imagesByServiceId = mappedImages.reduce((acc, image) => {
-        if (!acc.has(image.service_id)) {
-          acc.set(image.service_id, []);
-        }
-        acc.get(image.service_id).push(image);
-        return acc;
-      }, new Map());
-    }
+        imagesByServiceId = mappedImages.reduce((acc, image) => {
+          if (!acc.has(image.service_id)) {
+            acc.set(image.service_id, []);
+          }
+          acc.get(image.service_id).push(image);
+          return acc;
+        }, new Map());
+      }
 
-    setRoom(roomRow);
-    setProvider(providerRow || null);
-    setServices(
-      (serviceRows || []).map((service) => ({
-        ...service,
-        images: imagesByServiceId.get(service.id) || [],
-      })),
-    );
-  }, [roomId, router]);
+      setRoom(roomRow);
+      setProvider(providerRow || null);
+      setServices(
+        (serviceRows || []).map((service) => ({
+          ...service,
+          images: imagesByServiceId.get(service.id) || [],
+        })),
+      );
+    },
+    [roomId, router],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -212,7 +215,8 @@ export default function RoomServicesManagePage() {
     setForm((current) => ({
       ...current,
       [field]: value,
-      ...(field === "serviceType" && !SERVICE_TYPES_WITH_DURATION.includes(value)
+      ...(field === "serviceType" &&
+      !SERVICE_TYPES_WITH_DURATION.includes(value)
         ? { durationMinutes: "" }
         : {}),
     }));
@@ -225,7 +229,10 @@ export default function RoomServicesManagePage() {
       serviceType: service.service_type || "decorations",
       pricePerUnit: String(service.price_per_unit ?? ""),
       unitsOfMeasure: service.units_of_measure || "unit",
-      durationMinutes: service.duration_minutes == null ? "" : String(service.duration_minutes),
+      durationMinutes:
+        service.duration_minutes == null
+          ? ""
+          : String(service.duration_minutes),
       shortDescription: service.short_description || "",
       fullDescription: service.full_description || "",
       includesText: service.includes_text || "",
@@ -263,7 +270,8 @@ export default function RoomServicesManagePage() {
         venue_id: room.venue_id,
         room_id: room.id,
         name: form.name.trim() || null,
-        description: form.fullDescription.trim() || form.shortDescription.trim() || null,
+        description:
+          form.fullDescription.trim() || form.shortDescription.trim() || null,
         short_description: form.shortDescription.trim() || null,
         full_description: form.fullDescription.trim() || null,
         includes_text: form.includesText.trim() || null,
@@ -349,7 +357,7 @@ export default function RoomServicesManagePage() {
       }
       setErrorMsg(
         provider?.id
-          ? "Nepavyko issaugoti kambario paslaugos."
+          ? "Nepavyko išsaugoti kambario paslaugos."
           : "Norint kurti kambario paslaugas, pirma reikia susikurti paslaugu teikejo profili.",
       );
     } finally {
@@ -409,7 +417,7 @@ export default function RoomServicesManagePage() {
           onClick={() => router.push(`/partner/venue/kambariai/${roomId}`)}
           className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
         >
-          Grizti i kambario valdyma
+          Grįžti i kambario valdyma
         </button>
       </div>
 
@@ -527,7 +535,7 @@ export default function RoomServicesManagePage() {
         <section className="rounded-[28px] bg-white p-[24px] shadow-sm">
           <div className="flex items-center justify-between gap-[12px]">
             <h2 className="ui-font text-[22px] font-semibold text-slate-900">
-              {form.id ? "Redaguoti paslauga" : "Prideti paslauga"}
+              {form.id ? "Redaguoti paslauga" : "pridėti paslauga"}
             </h2>
             {form.id ? (
               <button
@@ -690,7 +698,11 @@ export default function RoomServicesManagePage() {
               disabled={saving || !provider}
               className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {saving ? "Saugoma..." : form.id ? "Issaugoti paslauga" : "Prideti paslauga"}
+              {saving
+                ? "Saugoma..."
+                : form.id
+                  ? "išsaugoti paslauga"
+                  : "pridėti paslauga"}
             </button>
           </form>
         </section>
@@ -699,7 +711,7 @@ export default function RoomServicesManagePage() {
       <ConfirmModal
         open={Boolean(serviceToDelete)}
         title="Istrinti paslauga?"
-        message={`Paslauga "${serviceToDelete?.name || ""}" bus istrinta is sio kambario. Ar tikrai norite testi?`}
+        message={`Paslauga "${serviceToDelete?.name || ""}" bus istrinta is sio kambario. Ar tikrai norite Tęsti?`}
         confirmLabel="Taip, istrinti"
         cancelLabel="Ne, palikti"
         loading={Boolean(deletingServiceId)}

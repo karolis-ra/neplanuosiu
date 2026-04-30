@@ -27,6 +27,61 @@ function pickPrimaryImage(images) {
   })[0];
 }
 
+function formatPrice(value) {
+  return `${Number(value || 0).toFixed(2)} EUR`;
+}
+
+function formatDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getCurrentMonthDateRange() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  return {
+    from: formatDateInputValue(firstDay),
+    to: formatDateInputValue(lastDay),
+  };
+}
+
+function getApprovalPriority(approval) {
+  const statusScore =
+    approval?.status === "confirmed" || approval?.status === "rejected"
+      ? 3
+      : approval?.status === "cancelled"
+        ? 2
+        : 1;
+  const respondedScore = approval?.responded_at ? 1 : 0;
+  const timestamp = Date.parse(
+    approval?.responded_at || approval?.created_at || "1970-01-01T00:00:00Z",
+  );
+
+  return [statusScore, respondedScore, Number.isNaN(timestamp) ? 0 : timestamp];
+}
+
+function pickBestApproval(current, candidate) {
+  if (!current) return candidate;
+
+  const a = getApprovalPriority(current);
+  const b = getApprovalPriority(candidate);
+
+  if (b[0] !== a[0]) {
+    return b[0] > a[0] ? candidate : current;
+  }
+
+  if (b[1] !== a[1]) {
+    return b[1] > a[1] ? candidate : current;
+  }
+
+  return b[2] >= a[2] ? candidate : current;
+}
+
 export default function PartnerPage() {
   const router = useRouter();
 
@@ -34,6 +89,7 @@ export default function PartnerPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [venue, setVenue] = useState(null);
   const [serviceProvider, setServiceProvider] = useState(null);
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -70,6 +126,11 @@ export default function PartnerPage() {
 
         const currentRole = userRow?.role || "";
 
+        if (currentRole === "admin") {
+          router.replace("/admin");
+          return;
+        }
+
         if (!currentRole || currentRole === "client") {
           router.replace("/paskyros-tipas");
           return;
@@ -88,7 +149,9 @@ export default function PartnerPage() {
           console.error("venue fetch error:", venueError.message);
         }
 
+        const monthRange = getCurrentMonthDateRange();
         let venueCoverUrl = null;
+        let monthlyVenueRevenue = 0;
 
         if (venueRow?.id) {
           const { data: venueImages, error: venueImagesError } = await supabase
@@ -102,6 +165,43 @@ export default function PartnerPage() {
           }
 
           venueCoverUrl = getPublicUrl(pickPrimaryImage(venueImages)?.path);
+
+          const { data: venueBookings, error: venueBookingsError } =
+            await supabase
+              .from("bookings")
+              .select(
+                `
+                total_price,
+                total_amount,
+                services_total,
+                room:rooms!inner (
+                  venue_id
+                )
+              `,
+              )
+              .eq("room.venue_id", venueRow.id)
+              .eq("status", "confirmed")
+              .gte("event_date", monthRange.from)
+              .lte("event_date", monthRange.to);
+
+          if (venueBookingsError) {
+            console.error(
+              "venue monthly revenue bookings fetch error:",
+              venueBookingsError.message,
+            );
+          } else {
+            monthlyVenueRevenue = (venueBookings || []).reduce(
+              (sum, booking) => {
+                const bookingTotal = Number(
+                  booking.total_amount ?? booking.total_price ?? 0,
+                );
+                const servicesTotal = Number(booking.services_total || 0);
+
+                return sum + Math.max(bookingTotal - servicesTotal, 0);
+              },
+              0,
+            );
+          }
         }
 
         setVenue(venueRow ? { ...venueRow, coverUrl: venueCoverUrl } : null);
@@ -120,6 +220,7 @@ export default function PartnerPage() {
         }
 
         let providerImageUrl = null;
+        let monthlyServiceRevenue = 0;
 
         if (providerRow?.id) {
           const { data: serviceRows, error: servicesError } = await supabase
@@ -128,12 +229,92 @@ export default function PartnerPage() {
             .eq("provider_id", providerRow.id);
 
           if (servicesError) {
-            console.error("provider services fetch error:", servicesError.message);
+            console.error(
+              "provider services fetch error:",
+              servicesError.message,
+            );
           }
 
           const serviceIds = (serviceRows || []).map((service) => service.id);
 
           if (serviceIds.length) {
+            const { data: bookingServiceRows, error: bookingServicesError } =
+              await supabase
+                .from("booking_services")
+                .select(
+                  `
+                  booking_id,
+                  service_id,
+                  price_per_unit,
+                  booking:bookings!booking_services_booking_id_fkey!inner (
+                    status,
+                    event_date
+                  )
+                `,
+                )
+                .in("service_id", serviceIds)
+                .eq("booking.status", "confirmed")
+                .gte("booking.event_date", monthRange.from)
+                .lte("booking.event_date", monthRange.to);
+
+            if (bookingServicesError) {
+              console.error(
+                "provider monthly revenue booking services fetch error:",
+                bookingServicesError.message,
+              );
+            } else {
+              const bookingIds = [
+                ...new Set(
+                  (bookingServiceRows || [])
+                    .map((item) => item.booking_id)
+                    .filter(Boolean),
+                ),
+              ];
+
+              if (bookingIds.length) {
+                const { data: approvalRows, error: approvalsError } =
+                  await supabase
+                    .from("booking_approvals")
+                    .select(
+                      "booking_id, service_id, status, responded_at, created_at",
+                    )
+                    .eq("approval_type", "service")
+                    .in("booking_id", bookingIds)
+                    .in("service_id", serviceIds);
+
+                if (approvalsError) {
+                  console.error(
+                    "provider monthly revenue approvals fetch error:",
+                    approvalsError.message,
+                  );
+                } else {
+                  const approvalsByBookingService = (approvalRows || []).reduce(
+                    (map, approval) => {
+                      const key = `${approval.booking_id}:${approval.service_id}`;
+                      map.set(key, pickBestApproval(map.get(key), approval));
+                      return map;
+                    },
+                    new Map(),
+                  );
+
+                  monthlyServiceRevenue = (bookingServiceRows || []).reduce(
+                    (sum, item) => {
+                      const approval = approvalsByBookingService.get(
+                        `${item.booking_id}:${item.service_id}`,
+                      );
+
+                      if (approval?.status !== "confirmed") {
+                        return sum;
+                      }
+
+                      return sum + Number(item.price_per_unit || 0);
+                    },
+                    0,
+                  );
+                }
+              }
+            }
+
             const { data: serviceImages, error: serviceImagesError } =
               await supabase
                 .from("service_images")
@@ -147,13 +328,16 @@ export default function PartnerPage() {
               );
             }
 
-            providerImageUrl = getPublicUrl(pickPrimaryImage(serviceImages)?.path);
+            providerImageUrl = getPublicUrl(
+              pickPrimaryImage(serviceImages)?.path,
+            );
           }
         }
 
         setServiceProvider(
           providerRow ? { ...providerRow, coverUrl: providerImageUrl } : null,
         );
+        setMonthlyRevenue(monthlyVenueRevenue + monthlyServiceRevenue);
       } catch (error) {
         console.error("partner page load error:", error);
         if (isMounted) {
@@ -196,6 +380,23 @@ export default function PartnerPage() {
           <p className="ui-font text-[14px] text-red-600">{errorMsg}</p>
         </div>
       )}
+
+      <section className="mb-[20px] rounded-[28px] bg-white p-[22px] shadow-sm">
+        <div className="mt-[8px] flex flex-col gap-[6px] sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="ui-font text-[24px] font-semibold text-slate-900">
+              Einamojo menesio pajamos
+            </h2>
+            <p className="mt-[4px] ui-font text-[14px] text-slate-500">
+              Skaiciuojama is patvirtintu kambariu rezervaciju ir patvirtintu
+              paslaugu uzsakymu.
+            </p>
+          </div>
+          <p className="ui-font text-[30px] font-semibold text-slate-900">
+            {formatPrice(monthlyRevenue)}
+          </p>
+        </div>
+      </section>
 
       <section className="grid gap-[20px] md:grid-cols-2">
         <article className="rounded-[28px] bg-white p-[24px] shadow-sm">

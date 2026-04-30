@@ -6,7 +6,7 @@ import FavoriteButton from "./FavoriteButton";
 import ResponsiveImageFrame from "./ResponsiveImageFrame";
 import { supabase } from "../lib/supabaseClient";
 
-export default function RoomCard({ room, onFavoriteChange }) {
+export default function RoomCard({ room, initialIsFavorite, onFavoriteChange }) {
   const primaryImageUrl = room.primaryImageUrl;
   const city = room.venue_city || room.city || "";
   const address = room.venue_address || "";
@@ -50,7 +50,11 @@ export default function RoomCard({ room, onFavoriteChange }) {
   return (
     <article className="relative flex flex-col overflow-hidden rounded-3xl bg-white shadow-sm">
       <div className="relative bg-slate-200">
-        <FavoriteButton roomId={room.id} onToggle={handleToggle} />
+        <FavoriteButton
+          roomId={room.id}
+          initialIsFavorite={initialIsFavorite}
+          onToggle={handleToggle}
+        />
 
         <Link
           href={`/kambariai/${room.id}`}

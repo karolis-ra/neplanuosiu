@@ -243,10 +243,12 @@ export default function FirstServiceOnboardingPage() {
         notes: notes.trim() || null,
       };
 
-      const { error: insertError } = await supabase.from("services").insert(payload);
+      const { error: insertError } = await supabase
+        .from("services")
+        .insert(payload);
 
       if (insertError) {
-        throw createStepError("Nepavyko issaugoti paslaugos", insertError);
+        throw createStepError("Nepavyko išsaugoti paslaugos", insertError);
       }
 
       const { error: deleteAvailabilityError } = await supabase
@@ -274,7 +276,7 @@ export default function FirstServiceOnboardingPage() {
 
       if (availabilityError) {
         throw createStepError(
-          "Nepavyko issaugoti paslaugos laisvumo",
+          "Nepavyko išsaugoti paslaugos laisvumo",
           availabilityError,
         );
       }
@@ -291,7 +293,10 @@ export default function FirstServiceOnboardingPage() {
           });
 
         if (uploadError) {
-          throw createStepError("Nepavyko ikelti paslaugos nuotraukos", uploadError);
+          throw createStepError(
+            "Nepavyko ikelti paslaugos nuotraukos",
+            uploadError,
+          );
         }
 
         uploadedPaths.push(path);
@@ -312,7 +317,7 @@ export default function FirstServiceOnboardingPage() {
 
         if (serviceImagesError) {
           throw createStepError(
-            "Nepavyko issaugoti paslaugos nuotrauku irasu",
+            "Nepavyko išsaugoti paslaugos nuotrauku irasu",
             serviceImagesError,
           );
         }
@@ -333,7 +338,10 @@ export default function FirstServiceOnboardingPage() {
         await supabase.storage.from(BUCKET).remove(uploadedPaths);
       }
 
-      await supabase.from("service_images").delete().eq("service_id", serviceId);
+      await supabase
+        .from("service_images")
+        .delete()
+        .eq("service_id", serviceId);
       await supabase.from("services").delete().eq("id", serviceId);
 
       setErrorMsg(
@@ -425,7 +433,9 @@ export default function FirstServiceOnboardingPage() {
 
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
-              <label className="ui-font text-[13px] text-slate-600">Kaina</label>
+              <label className="ui-font text-[13px] text-slate-600">
+                Kaina
+              </label>
               <input
                 type="number"
                 min="0"
@@ -556,7 +566,9 @@ export default function FirstServiceOnboardingPage() {
           )}
 
           <div className="space-y-[6px]">
-            <label className="ui-font text-[13px] text-slate-600">Pastabos</label>
+            <label className="ui-font text-[13px] text-slate-600">
+              Pastabos
+            </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

@@ -2,7 +2,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { buildRoomsWithImages } from "../lib/roomImageUtils";
 import SearchFilters from "../components/SearchFilters";
-import RoomCard from "../components/RoomCard";
+import SearchRoomsGrid from "../components/SearchRoomsGrid";
 import SearchMapSection from "../components/SearchMapSection";
 
 export const dynamic = "force-dynamic";
@@ -24,21 +24,21 @@ export default async function SearchPage({
     .from("rooms")
     .select(
       `
-    id,
-    venue_id,
-    name,
-    description,
-    price,
-    capacity,
-    city,
-    is_listed,
-    venues (
       id,
+      venue_id,
       name,
-      latitude,
-      longitude
-    )
-  `
+      description,
+      price,
+      capacity,
+      city,
+      is_listed,
+      venues (
+        id,
+        name,
+        latitude,
+        longitude
+      )
+    `,
     )
     .eq("is_listed", true)
     .order("price", { ascending: true });
@@ -49,11 +49,11 @@ export default async function SearchPage({
     rooms = roomsData || [];
 
     if (miestas) {
-      rooms = rooms.filter((r) => r.city === miestas);
+      rooms = rooms.filter((room) => room.city === miestas);
     }
 
     if (zmones) {
-      rooms = rooms.filter((r) => !r.capacity || r.capacity >= zmones);
+      rooms = rooms.filter((room) => !room.capacity || room.capacity >= zmones);
     }
   }
 
@@ -117,22 +117,12 @@ export default async function SearchPage({
       </div>
 
       {error && (
-        <div className="mt-4 rounded-2xl bg-red-50 p-3 text-sm text-red-700 ui-font">
+        <div className="ui-font mt-4 rounded-2xl bg-red-50 p-3 text-sm text-red-700">
           Klaida gaunant kambarius: {error.message}
         </div>
       )}
 
-      <section className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {roomsWithImages.length === 0 && !error && (
-          <div className="ui-font md:col-span-2 lg:col-span-3 rounded-2xl bg-white p-5 text-sm text-slate-700 shadow-sm">
-            Neradome kambarių pagal pasirinktus kriterijus.
-          </div>
-        )}
-
-        {roomsWithImages.map((room) => (
-          <RoomCard key={room.id} room={room} />
-        ))}
-      </section>
+      <SearchRoomsGrid rooms={roomsWithImages} hasError={Boolean(error)} />
     </div>
   );
 }

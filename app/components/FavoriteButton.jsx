@@ -4,12 +4,21 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
 
-export default function FavoriteButton({ roomId, onToggle }) {
+export default function FavoriteButton({ roomId, initialIsFavorite, onToggle }) {
   const [loading, setLoading] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite === true);
   const router = useRouter();
+  const hasExternalInitialState = initialIsFavorite !== undefined;
+  const isInitialStateLoading = initialIsFavorite === null;
 
   useEffect(() => {
+    if (hasExternalInitialState) {
+      if (typeof initialIsFavorite === "boolean") {
+        setIsFavorite(initialIsFavorite);
+      }
+      return;
+    }
+
     const loadInitial = async () => {
       const {
         data: { user },
@@ -27,7 +36,7 @@ export default function FavoriteButton({ roomId, onToggle }) {
     };
 
     loadInitial();
-  }, [roomId]);
+  }, [hasExternalInitialState, initialIsFavorite, roomId]);
 
   const handleClick = async () => {
     setLoading(true);
@@ -74,14 +83,17 @@ export default function FavoriteButton({ roomId, onToggle }) {
     <button
       type="button"
       onClick={handleClick}
-      disabled={loading}
-      className={`absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition
+      disabled={loading || isInitialStateLoading}
+      aria-label={isFavorite ? "Pasalinti is pamegtu" : "Prideti prie pamegtu"}
+      className={`absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition
         ${
-          isFavorite
+          isInitialStateLoading
+            ? "bg-white/80 text-slate-400 backdrop-blur"
+            : isFavorite
             ? "bg-white text-[#513CD6]"
             : "bg-black/25 text-white/80 backdrop-blur border border-white/60"
         }
-        ${loading ? "opacity-60 cursor-wait" : "hover:scale-105"}
+        ${loading || isInitialStateLoading ? "opacity-70 cursor-wait" : "hover:scale-105"}
       `}
     >
       <svg

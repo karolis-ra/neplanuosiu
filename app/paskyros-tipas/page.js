@@ -11,21 +11,21 @@ const accountTypes = [
     title: "Klientas",
     description:
       "Ieskokite zaidimu kambariu, rinkites papildomas paslaugas ir teikite rezervacijos uzklausas.",
-    buttonLabel: "Testi kaip klientui",
+    buttonLabel: "Tęsti kaip klientui",
   },
   {
     id: "venue_owner",
     title: "Zaidimu erdves valdytojas",
     description:
       "Kurti savo zaidimu erdve, valdyti kambarius, perziureti rezervaciju uzklausas ir siulyti papildomas paslaugas.",
-    buttonLabel: "Testi kaip erdves valdytojui",
+    buttonLabel: "Tęsti kaip erdves valdytojui",
   },
   {
     id: "service_provider",
     title: "Paslaugu teikejas",
     description:
       "Kurti savo paslaugas, valdyti darbo laika ir tvirtinti su paslaugomis susijusias uzklausas.",
-    buttonLabel: "Testi kaip paslaugu teikejui",
+    buttonLabel: "Tęsti kaip paslaugu teikejui",
   },
 ];
 
@@ -147,7 +147,7 @@ export default function AccountTypePage() {
     } catch (e) {
       console.error("account type save error:", e);
       setError(
-        e?.message || "Nepavyko issaugoti paskyros tipo. Bandykite dar karta.",
+        e?.message || "Nepavyko išsaugoti paskyros tipo. Bandykite dar karta.",
       );
       setSavingType("");
     }

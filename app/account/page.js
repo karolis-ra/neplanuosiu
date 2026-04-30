@@ -38,6 +38,10 @@ function isUpcomingBooking(booking) {
   return startDate.getTime() >= Date.now();
 }
 
+function isInactiveBookingStatus(status) {
+  return status === "cancelled" || status === "rejected";
+}
+
 function getBookingStatusLabel(status) {
   switch (status) {
     case "pending":
@@ -186,6 +190,30 @@ function formatPrice(value) {
   return `${Number(value).toFixed(2)} EUR`;
 }
 
+function normalizeSearchValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function bookingMatchesSearch(booking, searchValue) {
+  const query = normalizeSearchValue(searchValue);
+  if (!query) return true;
+
+  const room = booking?.room || {};
+  const venue = room.venue || {};
+  const fields = [
+    booking?.reservation_code,
+    booking?.guest_name,
+    booking?.guest_email,
+    booking?.guest_phone,
+    room.name,
+    venue.name,
+  ];
+
+  return fields.some((field) =>
+    normalizeSearchValue(field).includes(query),
+  );
+}
+
 function DetailCell({ label, value }) {
   return (
     <div className="rounded-[18px] bg-slate-50 p-[12px]">
@@ -199,15 +227,16 @@ function DetailCell({ label, value }) {
 
 function buildBookingDetails(booking) {
   const approvals = booking?.booking_approvals || [];
-  const roomApproval =
-    approvals
-      .filter((approval) => approval.approval_type === "venue")
-      .reduce((current, approval) => pickBestApproval(current, approval), null) ||
-    {
-      id: `synthetic-venue-${booking.id}`,
-      status: booking.status || "pending",
-      approval_type: "venue",
-    };
+  const roomApproval = approvals
+    .filter((approval) => approval.approval_type === "venue")
+    .reduce(
+      (current, approval) => pickBestApproval(current, approval),
+      null,
+    ) || {
+    id: `synthetic-venue-${booking.id}`,
+    status: booking.status || "pending",
+    approval_type: "venue",
+  };
 
   const approvalsByService = approvals
     .filter((approval) => approval.approval_type === "service")
@@ -231,12 +260,37 @@ function buildBookingDetails(booking) {
   };
 }
 
+function getBookingSummaryStatus(booking) {
+  if (!booking) return "pending";
+  if (booking.status === "cancelled") return "cancelled";
+
+  const { roomApproval, serviceItems } = buildBookingDetails(booking);
+  const approvalStatuses = [
+    roomApproval?.status,
+    ...serviceItems.map((item) => item.approval?.status),
+  ].filter(Boolean);
+
+  if (booking.status === "rejected" || approvalStatuses.includes("rejected")) {
+    return "rejected";
+  }
+
+  if (
+    approvalStatuses.length > 0 &&
+    approvalStatuses.every((status) => status === "confirmed")
+  ) {
+    return "confirmed";
+  }
+
+  return "pending";
+}
+
 function ClientReservationDetailsModal({ booking, onClose }) {
   if (!booking) return null;
 
   const room = booking.room || {};
   const venue = room.venue || {};
   const { roomApproval, serviceItems } = buildBookingDetails(booking);
+  const summaryStatus = getBookingSummaryStatus(booking);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
@@ -266,6 +320,10 @@ function ClientReservationDetailsModal({ booking, onClose }) {
         </div>
 
         <div className="grid gap-[10px] md:grid-cols-2 xl:grid-cols-4">
+          <DetailCell
+            label="Rezervacijos Nr."
+            value={booking.reservation_code}
+          />
           <DetailCell label="Data" value={booking.event_date} />
           <DetailCell
             label="Laikas"
@@ -277,7 +335,8 @@ function ClientReservationDetailsModal({ booking, onClose }) {
           <DetailCell
             label="Adresas"
             value={
-              [venue.address, venue.city].filter(Boolean).join(", ") || room.city
+              [venue.address, venue.city].filter(Boolean).join(", ") ||
+              room.city
             }
           />
           <DetailCell
@@ -286,7 +345,7 @@ function ClientReservationDetailsModal({ booking, onClose }) {
           />
           <DetailCell
             label="Bendras statusas"
-            value={getBookingStatusLabel(booking.status)}
+            value={getBookingStatusLabel(summaryStatus)}
           />
         </div>
 
@@ -337,7 +396,10 @@ function ClientReservationDetailsModal({ booking, onClose }) {
                 </p>
                 <div className="mt-[12px] grid gap-[10px] md:grid-cols-3">
                   <DetailCell label="Tiekejas" value={providerName} />
-                  <DetailCell label="Kaina" value={formatPrice(item.price_per_unit)} />
+                  <DetailCell
+                    label="Kaina"
+                    value={formatPrice(item.price_per_unit)}
+                  />
                   <DetailCell
                     label="Matavimo vnt."
                     value={item.units_of_measure || "unit"}
@@ -356,7 +418,8 @@ export default function AccountPage() {
   const [rooms, setRooms] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [currentUserId, setCurrentUserId] = useState("");
-  const [reservationTab, setReservationTab] = useState("upcoming");
+  const [reservationTab, setReservationTab] = useState("active");
+  const [reservationSearch, setReservationSearch] = useState("");
   const [activeBookingId, setActiveBookingId] = useState("");
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -418,6 +481,11 @@ export default function AccountPage() {
 
         const role = userRow?.role || "client";
 
+        if (role === "admin") {
+          router.replace("/admin");
+          return;
+        }
+
         if (role === "venue_owner" || role === "service_provider") {
           router.replace("/partner");
           return;
@@ -469,6 +537,7 @@ export default function AccountPage() {
           .select(
             `
             id,
+            reservation_code,
             room_id,
             status,
             event_date,
@@ -538,18 +607,63 @@ export default function AccountPage() {
     };
   }, [router]);
 
-  const groupedBookings = useMemo(
-    () => ({
-      upcoming: bookings.filter(isUpcomingBooking),
-      history: bookings.filter((booking) => !isUpcomingBooking(booking)),
-    }),
-    [bookings],
-  );
+  const groupedBookings = useMemo(() => {
+    return bookings.reduce(
+      (groups, booking) => {
+        const summaryStatus = getBookingSummaryStatus(booking);
+
+        if (!isUpcomingBooking(booking)) {
+          groups.history.push(booking);
+        } else if (isInactiveBookingStatus(summaryStatus)) {
+          groups.inactive.push(booking);
+        } else {
+          groups.active.push(booking);
+        }
+
+        return groups;
+      },
+      {
+        active: [],
+        inactive: [],
+        history: [],
+      },
+    );
+  }, [bookings]);
 
   const shownBookings =
-    reservationTab === "history"
-      ? groupedBookings.history
-      : groupedBookings.upcoming;
+    groupedBookings[reservationTab] || groupedBookings.active;
+  const filteredShownBookings = useMemo(
+    () =>
+      shownBookings.filter((booking) =>
+        bookingMatchesSearch(booking, reservationSearch),
+      ),
+    [reservationSearch, shownBookings],
+  );
+
+  const reservationTabs = [
+    {
+      key: "active",
+      label: "Aktyvios",
+      count: groupedBookings.active.length,
+      emptyText: "Siuo metu neturite aktyviu rezervaciju.",
+    },
+    {
+      key: "inactive",
+      label: "Atmestos",
+      count: groupedBookings.inactive.length,
+      emptyText: "Siuo metu neturite atmestu ar atsauktu rezervaciju.",
+    },
+    {
+      key: "history",
+      label: "Istorija",
+      count: groupedBookings.history.length,
+      emptyText: "Rezervaciju istorija tuscia.",
+    },
+  ];
+
+  const activeReservationTab =
+    reservationTabs.find((tab) => tab.key === reservationTab) ||
+    reservationTabs[0];
 
   const activeBooking = useMemo(
     () => bookings.find((booking) => booking.id === activeBookingId) || null,
@@ -646,6 +760,7 @@ export default function AccountPage() {
               <RoomCard
                 key={room.id}
                 room={room}
+                initialIsFavorite={true}
                 onFavoriteChange={handleFavoriteChange}
               />
             ))}
@@ -659,60 +774,58 @@ export default function AccountPage() {
           <span className="text-sm text-slate-500">
             Iš viso: {bookings.length}
           </span>
-          <div className="inline-flex rounded-full bg-slate-100 p-1">
-            <button
-              type="button"
-              onClick={() => setReservationTab("upcoming")}
-              className={`ui-font rounded-full px-4 py-2 text-sm font-semibold transition ${
-                reservationTab === "upcoming"
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-slate-600 hover:text-primary"
-              }`}
-            >
-              Artejancios ({groupedBookings.upcoming.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setReservationTab("history")}
-              className={`ui-font rounded-full px-4 py-2 text-sm font-semibold transition ${
-                reservationTab === "history"
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-slate-600 hover:text-primary"
-              }`}
-            >
-              Rezervaciju istorija ({groupedBookings.history.length})
-            </button>
+          <div className="inline-flex flex-wrap gap-1 rounded-[20px] bg-slate-100 p-1">
+            {reservationTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setReservationTab(tab.key)}
+                className={`ui-font rounded-[16px] px-4 py-2 text-sm font-semibold transition ${
+                  activeReservationTab.key === tab.key
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-slate-600 hover:text-primary"
+                }`}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
           </div>
         </div>
 
-        {shownBookings.length === 0 ? (
+        <div className="max-w-[420px]">
+          <label className="ui-font text-[12px] font-semibold text-slate-500">
+            Paieska pagal rezervacijos Nr.
+            <input
+              type="search"
+              value={reservationSearch}
+              onChange={(event) => setReservationSearch(event.target.value)}
+              placeholder="Pvz. NP-202604-000123"
+              className="mt-[6px] h-[42px] w-full rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] text-slate-800 outline-none transition focus:border-primary"
+            />
+          </label>
+        </div>
+
+        {filteredShownBookings.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
             <p className="text-sm text-slate-600 ui-font">
-              {reservationTab === "history"
-                ? "Rezervaciju istorija tuscia."
-                : "Siuo metu neturite artejanciu rezervaciju."}
+              {reservationSearch
+                ? "Pagal nurodyta paieska rezervaciju nerasta."
+                : activeReservationTab.emptyText}
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {shownBookings.map((b) => {
-              const canCancel = canCancelBooking(b);
+            {filteredShownBookings.map((b) => {
+              const summaryStatus = getBookingSummaryStatus(b);
+              const canCancel = canCancelBooking({
+                ...b,
+                status: summaryStatus,
+              });
               const eventDate = b.event_date;
               const startTime = b.start_time?.slice(0, 5) || "";
               const endTime = b.end_time?.slice(0, 5) || "";
               const room = b.room || {};
               const venue = room.venue || {};
-              const approvalsByService = (b.booking_approvals || [])
-                .filter((approval) => approval.approval_type === "service")
-                .reduce((map, approval) => {
-                  const current = map.get(approval.service_id);
-                  map.set(
-                    approval.service_id,
-                    pickBestApproval(current, approval),
-                  );
-                  return map;
-                }, new Map());
-              const serviceItems = b.booking_services || [];
 
               return (
                 <div
@@ -726,12 +839,16 @@ export default function AccountPage() {
                       </p>
                       <span
                         className={`ui-font inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${getBookingStatusClassName(
-                          b.status,
+                          summaryStatus,
                         )}`}
                       >
-                        {getBookingStatusLabel(b.status)}
+                        {getBookingStatusLabel(summaryStatus)}
                       </span>
                     </div>
+
+                    <p className="ui-font text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">
+                      {b.reservation_code || "Rezervacijos Nr. nepaskirtas"}
+                    </p>
 
                     <p className="ui-font text-xs text-slate-600">
                       {eventDate} {startTime}
@@ -760,27 +877,6 @@ export default function AccountPage() {
                         {b.num_adults || 0}
                       </p>
                     )}
-                    {serviceItems.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {serviceItems.map((item) => {
-                          const serviceStatus =
-                            approvalsByService.get(item.service_id)?.status ||
-                            "pending";
-
-                          return (
-                            <span
-                              key={`${b.id}:${item.service_id}`}
-                              className={`ui-font inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${getBookingStatusClassName(
-                                serviceStatus,
-                              )}`}
-                            >
-                              {item.service?.name || "Paslauga"}:{" "}
-                              {getBookingStatusLabel(serviceStatus)}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
 
                   <div className="mt-2 flex items-center gap-2 md:mt-0 md:flex-col md:items-end">
@@ -792,22 +888,23 @@ export default function AccountPage() {
                       Perziureti rezervacija
                     </button>
 
-                    {b.status !== "cancelled" && b.status !== "rejected" && (
-                      <button
-                        type="button"
-                        onClick={() => handleCancelBooking(b.id)}
-                        disabled={!canCancel}
-                        className="ui-font inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-medium transition
+                    {summaryStatus !== "cancelled" &&
+                      summaryStatus !== "rejected" && (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelBooking(b.id)}
+                          disabled={!canCancel}
+                          className="ui-font inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-medium transition
                           disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300
                           border-red-300 text-red-600 hover:border-red-500 hover:text-red-700"
-                      >
-                        Atšaukti rezervaciją
-                      </button>
-                    )}
+                        >
+                          Atšaukti rezervaciją
+                        </button>
+                      )}
 
                     {!canCancel &&
-                      b.status !== "cancelled" &&
-                      b.status !== "rejected" && (
+                      summaryStatus !== "cancelled" &&
+                      summaryStatus !== "rejected" && (
                         <span className="ui-font text-[10px] text-slate-400">
                           Atšaukimas galimas tik likus ≥ 48 val.
                         </span>

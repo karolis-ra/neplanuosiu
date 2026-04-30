@@ -75,6 +75,7 @@ export default function ReservationClient() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [successBookingId, setSuccessBookingId] = useState(null);
+  const [successReservationCode, setSuccessReservationCode] = useState("");
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -306,7 +307,7 @@ export default function ReservationClient() {
       const { data: insertedBooking, error: insertError } = await supabase
         .from("bookings")
         .insert(bookingPayload)
-        .select("id")
+        .select("id, reservation_code")
         .single();
 
       if (insertError) {
@@ -320,6 +321,7 @@ export default function ReservationClient() {
       }
 
       insertedBookingId = insertedBooking.id;
+      setSuccessReservationCode(insertedBooking.reservation_code || "");
 
       if (selectedServices.length > 0) {
         const bookingServicesPayload = selectedServices.map((item) => ({
@@ -464,6 +466,15 @@ export default function ReservationClient() {
 
           <div className="mt-[20px] rounded-[20px] bg-slate-50 p-[16px]">
             <div className="space-y-[8px]">
+              <div className="flex items-start justify-between gap-[10px]">
+                <span className="ui-font text-[13px] text-slate-500">
+                  Rezervacijos Nr.
+                </span>
+                <span className="ui-font text-right text-[13px] font-semibold text-slate-800">
+                  {successReservationCode || "-"}
+                </span>
+              </div>
+
               <div className="flex items-start justify-between gap-[10px]">
                 <span className="ui-font text-[13px] text-slate-500">
                   Kambarys

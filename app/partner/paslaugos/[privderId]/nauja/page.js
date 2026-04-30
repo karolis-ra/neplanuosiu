@@ -249,10 +249,12 @@ export default function CreateServicePage() {
         notes: notes.trim() || null,
       };
 
-      const { error: insertError } = await supabase.from("services").insert(payload);
+      const { error: insertError } = await supabase
+        .from("services")
+        .insert(payload);
 
       if (insertError) {
-        throw createStepError("Nepavyko issaugoti paslaugos", insertError);
+        throw createStepError("Nepavyko išsaugoti paslaugos", insertError);
       }
 
       const { error: deleteAvailabilityError } = await supabase
@@ -280,7 +282,7 @@ export default function CreateServicePage() {
 
       if (availabilityError) {
         throw createStepError(
-          "Nepavyko issaugoti paslaugos laisvumo",
+          "Nepavyko išsaugoti paslaugos laisvumo",
           availabilityError,
         );
       }
@@ -297,7 +299,10 @@ export default function CreateServicePage() {
           });
 
         if (uploadError) {
-          throw createStepError("Nepavyko ikelti paslaugos nuotraukos", uploadError);
+          throw createStepError(
+            "Nepavyko ikelti paslaugos nuotraukos",
+            uploadError,
+          );
         }
 
         uploadedPaths.push(path);
@@ -318,7 +323,7 @@ export default function CreateServicePage() {
 
         if (serviceImagesError) {
           throw createStepError(
-            "Nepavyko issaugoti paslaugos nuotrauku irasu",
+            "Nepavyko išsaugoti paslaugos nuotrauku irasu",
             serviceImagesError,
           );
         }
@@ -339,7 +344,10 @@ export default function CreateServicePage() {
         await supabase.storage.from(BUCKET).remove(uploadedPaths);
       }
 
-      await supabase.from("service_images").delete().eq("service_id", serviceId);
+      await supabase
+        .from("service_images")
+        .delete()
+        .eq("service_id", serviceId);
       await supabase.from("services").delete().eq("id", serviceId);
 
       setErrorMsg(
@@ -431,7 +439,9 @@ export default function CreateServicePage() {
 
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
-              <label className="ui-font text-[13px] text-slate-600">Kaina</label>
+              <label className="ui-font text-[13px] text-slate-600">
+                Kaina
+              </label>
               <input
                 type="number"
                 min="0"
@@ -470,7 +480,7 @@ export default function CreateServicePage() {
                 className="mt-[2px] h-[16px] w-[16px]"
               />
               <span className="ui-font text-[14px] leading-[22px] text-slate-700">
-                Rodyti bendrame kataloge kaip globalia paslauga
+                Rodyti bendrame kataloge
               </span>
             </label>
           </div>
@@ -517,8 +527,8 @@ export default function CreateServicePage() {
             </div>
 
             <p className="ui-font mt-[10px] text-[12px] leading-[20px] text-slate-500">
-              Sis grafikas taikomas visoms sio paslaugu teikejo paslaugoms,
-              nes rezervacijoje naudojamas bendras teikejo uzimtumas.
+              Sis grafikas taikomas visoms sio paslaugu teikejo paslaugoms, nes
+              rezervacijoje naudojamas bendras teikejo uzimtumas.
             </p>
           </div>
 
@@ -577,7 +587,9 @@ export default function CreateServicePage() {
           )}
 
           <div className="space-y-[6px]">
-            <label className="ui-font text-[13px] text-slate-600">Pastabos</label>
+            <label className="ui-font text-[13px] text-slate-600">
+              Pastabos
+            </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

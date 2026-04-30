@@ -186,6 +186,10 @@ export default function PartnerReservationDetailsModal({
         </div>
 
         <div className="grid gap-[10px] md:grid-cols-2 xl:grid-cols-4">
+          <DetailCell
+            label="Rezervacijos Nr."
+            value={booking.reservation_code}
+          />
           <DetailCell label="Klientas" value={booking.guest_name} />
           <DetailCell label="El. pastas" value={booking.guest_email} />
           <DetailCell label="Telefonas" value={booking.guest_phone} />

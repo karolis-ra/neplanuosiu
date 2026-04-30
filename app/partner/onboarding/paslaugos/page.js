@@ -175,7 +175,9 @@ export default function ServiceProviderOnboardingPage() {
         is_published: true,
       };
 
-      const { error } = await supabase.from("service_providers").insert(payload);
+      const { error } = await supabase
+        .from("service_providers")
+        .insert(payload);
 
       if (error) {
         throw error;
@@ -383,7 +385,7 @@ export default function ServiceProviderOnboardingPage() {
             disabled={submitting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {submitting ? "Saugoma..." : "Testi ir prideti paslauga"}
+            {submitting ? "Saugoma..." : "Tęsti ir pridėti paslauga"}
           </button>
         </form>
       </section>

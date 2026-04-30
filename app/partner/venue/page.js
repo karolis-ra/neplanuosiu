@@ -68,23 +68,25 @@ export default function PartnerVenuePage() {
           return;
         }
 
-        const [{ data: coverImage }, { data: providerRow }] = await Promise.all([
-          supabase
-            .from("images")
-            .select("path")
-            .eq("venue_id", venueRow.id)
-            .is("room_id", null)
-            .eq("is_cover", true)
-            .order("position", { ascending: true })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from("service_providers")
-            .select("id, name")
-            .eq("owner_id", user.id)
-            .limit(1)
-            .maybeSingle(),
-        ]);
+        const [{ data: coverImage }, { data: providerRow }] = await Promise.all(
+          [
+            supabase
+              .from("images")
+              .select("path")
+              .eq("venue_id", venueRow.id)
+              .is("room_id", null)
+              .eq("is_cover", true)
+              .order("position", { ascending: true })
+              .limit(1)
+              .maybeSingle(),
+            supabase
+              .from("service_providers")
+              .select("id, name")
+              .eq("owner_id", user.id)
+              .limit(1)
+              .maybeSingle(),
+          ],
+        );
 
         setProvider(providerRow || null);
 
@@ -107,20 +109,21 @@ export default function PartnerVenuePage() {
 
         const roomIds = (roomRows || []).map((room) => room.id);
 
-        const [{ data: roomImages }, { data: roomServices }] = await Promise.all([
-          roomIds.length
-            ? supabase
-                .from("images")
-                .select("room_id, path, is_primary, is_cover, position")
-                .in("room_id", roomIds)
-            : Promise.resolve({ data: [] }),
-          roomIds.length
-            ? supabase
-                .from("services")
-                .select("id, room_id")
-                .in("room_id", roomIds)
-            : Promise.resolve({ data: [] }),
-        ]);
+        const [{ data: roomImages }, { data: roomServices }] =
+          await Promise.all([
+            roomIds.length
+              ? supabase
+                  .from("images")
+                  .select("room_id, path, is_primary, is_cover, position")
+                  .in("room_id", roomIds)
+              : Promise.resolve({ data: [] }),
+            roomIds.length
+              ? supabase
+                  .from("services")
+                  .select("id, room_id")
+                  .in("room_id", roomIds)
+              : Promise.resolve({ data: [] }),
+          ]);
 
         const imagesByRoomId = new Map();
         (roomImages || []).forEach((item) => {
@@ -132,17 +135,22 @@ export default function PartnerVenuePage() {
 
         const serviceCounts = new Map();
         (roomServices || []).forEach((item) => {
-          serviceCounts.set(item.room_id, (serviceCounts.get(item.room_id) || 0) + 1);
+          serviceCounts.set(
+            item.room_id,
+            (serviceCounts.get(item.room_id) || 0) + 1,
+          );
         });
 
         const enrichedRooms = (roomRows || []).map((room) => {
-          const roomGallery = (imagesByRoomId.get(room.id) || []).sort((a, b) => {
-            if (a.is_primary && !b.is_primary) return -1;
-            if (!a.is_primary && b.is_primary) return 1;
-            if (a.is_cover && !b.is_cover) return -1;
-            if (!a.is_cover && b.is_cover) return 1;
-            return (a.position ?? 9999) - (b.position ?? 9999);
-          });
+          const roomGallery = (imagesByRoomId.get(room.id) || []).sort(
+            (a, b) => {
+              if (a.is_primary && !b.is_primary) return -1;
+              if (!a.is_primary && b.is_primary) return 1;
+              if (a.is_cover && !b.is_cover) return -1;
+              if (!a.is_cover && b.is_cover) return 1;
+              return (a.position ?? 9999) - (b.position ?? 9999);
+            },
+          );
 
           return {
             ...room,
@@ -196,7 +204,9 @@ export default function PartnerVenuePage() {
         <div className="flex flex-col gap-[10px] sm:flex-row">
           <button
             type="button"
-            onClick={() => venue && router.push(`/partner/venue/${venue.id}/redaguoti`)}
+            onClick={() =>
+              venue && router.push(`/partner/venue/${venue.id}/redaguoti`)
+            }
             className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Redaguoti erdve
@@ -205,11 +215,12 @@ export default function PartnerVenuePage() {
           <button
             type="button"
             onClick={() =>
-              venue && router.push(`/partner/venue/${venue.id}/kambariai/naujas`)
+              venue &&
+              router.push(`/partner/venue/${venue.id}/kambariai/naujas`)
             }
             className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
           >
-            Prideti nauja kambari
+            pridėti nauja kambari
           </button>
         </div>
       </div>
@@ -244,14 +255,18 @@ export default function PartnerVenuePage() {
 
               <div className="mt-[20px] grid gap-[12px] md:grid-cols-2 xl:grid-cols-3">
                 <div className="rounded-[20px] bg-slate-50 p-[14px]">
-                  <p className="ui-font text-[12px] text-slate-500">El. pastas</p>
+                  <p className="ui-font text-[12px] text-slate-500">
+                    El. pastas
+                  </p>
                   <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
                     {venue.email || "-"}
                   </p>
                 </div>
 
                 <div className="rounded-[20px] bg-slate-50 p-[14px]">
-                  <p className="ui-font text-[12px] text-slate-500">Telefonas</p>
+                  <p className="ui-font text-[12px] text-slate-500">
+                    Telefonas
+                  </p>
                   <p className="mt-[4px] ui-font text-[14px] font-semibold text-slate-800">
                     {venue.phone || "-"}
                   </p>
@@ -272,7 +287,9 @@ export default function PartnerVenuePage() {
                 </div>
 
                 <div className="rounded-[20px] bg-slate-50 p-[14px]">
-                  <p className="ui-font text-[12px] text-slate-500">Instagram</p>
+                  <p className="ui-font text-[12px] text-slate-500">
+                    Instagram
+                  </p>
                   <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
                     {venue.instagram_url || "-"}
                   </p>
@@ -286,7 +303,9 @@ export default function PartnerVenuePage() {
                 </div>
 
                 <div className="rounded-[20px] bg-slate-50 p-[14px] md:col-span-2 xl:col-span-3">
-                  <p className="ui-font text-[12px] text-slate-500">Google Maps</p>
+                  <p className="ui-font text-[12px] text-slate-500">
+                    Google Maps
+                  </p>
                   <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
                     {venue.google_maps_url || "-"}
                   </p>
@@ -363,7 +382,7 @@ export default function PartnerVenuePage() {
               }
               className="ui-font mt-[16px] inline-flex h-[48px] items-center justify-center rounded-[16px] bg-primary px-[18px] text-[14px] font-semibold text-white transition hover:bg-dark"
             >
-              Prideti kambari
+              pridėti kambari
             </button>
           </div>
         ) : (
@@ -407,21 +426,27 @@ export default function PartnerVenuePage() {
 
                     <div className="mt-[18px] grid gap-[10px] sm:grid-cols-2">
                       <div className="rounded-[18px] bg-slate-50 p-[12px]">
-                        <p className="ui-font text-[12px] text-slate-500">Kaina</p>
+                        <p className="ui-font text-[12px] text-slate-500">
+                          Kaina
+                        </p>
                         <p className="mt-[4px] ui-font text-[15px] font-semibold text-slate-800">
                           {formatPrice(room.price)}
                         </p>
                       </div>
 
                       <div className="rounded-[18px] bg-slate-50 p-[12px]">
-                        <p className="ui-font text-[12px] text-slate-500">Talpa</p>
+                        <p className="ui-font text-[12px] text-slate-500">
+                          Talpa
+                        </p>
                         <p className="mt-[4px] ui-font text-[15px] font-semibold text-slate-800">
                           {room.capacity || "-"} vaiku
                         </p>
                       </div>
 
                       <div className="rounded-[18px] bg-slate-50 p-[12px]">
-                        <p className="ui-font text-[12px] text-slate-500">Trukme</p>
+                        <p className="ui-font text-[12px] text-slate-500">
+                          Trukme
+                        </p>
                         <p className="mt-[4px] ui-font text-[15px] font-semibold text-slate-800">
                           {room.duration_minutes || "-"} min.
                         </p>
@@ -451,7 +476,9 @@ export default function PartnerVenuePage() {
                       <button
                         type="button"
                         onClick={() =>
-                          router.push(`/partner/venue/kambariai/${room.id}/paslaugos`)
+                          router.push(
+                            `/partner/venue/kambariai/${room.id}/paslaugos`,
+                          )
                         }
                         className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
                       >

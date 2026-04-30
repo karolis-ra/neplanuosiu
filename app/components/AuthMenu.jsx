@@ -4,7 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
-import { KeyRound, Pencil, LogOut, CircleUser, CalendarCheck } from "lucide-react";
+import {
+  KeyRound,
+  Pencil,
+  LogOut,
+  CircleUser,
+  CalendarCheck,
+  ShieldCheck,
+} from "lucide-react";
 
 function getReservationStatusSignature(bookings) {
   return (bookings || [])
@@ -61,6 +68,34 @@ function getSeenReservationStatuses(userId) {
   }
 }
 
+function getPartnerReservationSeenStorageKey(userId) {
+  return `seen_partner_reservations:${userId}`;
+}
+
+function getSeenPartnerReservationKeys(userId) {
+  if (typeof window === "undefined" || !userId) return {};
+
+  try {
+    return JSON.parse(
+      localStorage.getItem(getPartnerReservationSeenStorageKey(userId)) || "{}",
+    );
+  } catch {
+    return {};
+  }
+}
+
+function getPartnerPendingServiceKey(approval) {
+  return `service:${approval.booking_id}:${approval.service_id || "none"}:${
+    approval.id || approval.provider_id || "none"
+  }`;
+}
+
+function getPartnerPendingVenueKey(booking, approval) {
+  return `venue:${booking.id}:${
+    approval?.id || approval?.venue_id || booking.room?.venue_id || "booking"
+  }`;
+}
+
 function getApprovalPriority(approval) {
   const statusScore =
     approval?.status === "confirmed" || approval?.status === "rejected"
@@ -94,6 +129,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
   const [pendingPartnerReservations, setPendingPartnerReservations] = useState(0);
   const [clientReservationUpdates, setClientReservationUpdates] = useState(0);
   const [hasPartnerReservations, setHasPartnerReservations] = useState(false);
+  const [userRole, setUserRole] = useState("");
   const menuRef = useRef(null);
   const router = useRouter();
 
@@ -126,15 +162,28 @@ export default function AuthMenu({ onCloseMobileMenu }) {
       setHasPartnerReservations(true);
 
       const countPromises = [];
+      const seenKeys = getSeenPartnerReservationKeys(userId);
 
       if (providerRow?.id) {
         countPromises.push(
-          supabase
-            .from("booking_approvals")
-            .select("id", { count: "exact", head: true })
-            .eq("approval_type", "service")
-            .eq("provider_id", providerRow.id)
-            .eq("status", "pending"),
+          (async () => {
+            const { data, error } = await supabase
+              .from("booking_approvals")
+              .select("id, booking_id, service_id, provider_id")
+              .eq("approval_type", "service")
+              .eq("provider_id", providerRow.id)
+              .eq("status", "pending");
+
+            if (error) {
+              return { count: 0, error };
+            }
+
+            const count = (data || []).filter(
+              (approval) => !seenKeys[getPartnerPendingServiceKey(approval)],
+            ).length;
+
+            return { count, error: null };
+          })(),
         );
       }
 
@@ -159,7 +208,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
             const { data: approvalsData, error: approvalsError } = await supabase
               .from("booking_approvals")
               .select(
-                "booking_id, approval_type, venue_id, status, responded_at, created_at",
+                "id, booking_id, approval_type, venue_id, status, responded_at, created_at",
               )
               .in("booking_id", bookingIds)
               .eq("approval_type", "venue")
@@ -184,7 +233,10 @@ export default function AuthMenu({ onCloseMobileMenu }) {
             const count = (bookingsData || []).filter((booking) => {
               const approval = approvalsByBooking.get(booking.id);
               const status = approval?.status || booking.status;
-              return status === "pending";
+              return (
+                status === "pending" &&
+                !seenKeys[getPartnerPendingVenueKey(booking, approval)]
+              );
             }).length;
 
             return { count, error: null };
@@ -266,6 +318,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
           setHasPartnerReservations(false);
           setPendingPartnerReservations(0);
           setClientReservationUpdates(0);
+          setUserRole("");
         }
       }
     );
@@ -283,12 +336,47 @@ export default function AuthMenu({ onCloseMobileMenu }) {
 
     const timer = setTimeout(refreshCounts, 0);
     window.addEventListener("reservation-statuses-seen", refreshCounts);
+    window.addEventListener("partner-reservations-changed", refreshCounts);
 
     return () => {
       clearTimeout(timer);
       window.removeEventListener("reservation-statuses-seen", refreshCounts);
+      window.removeEventListener("partner-reservations-changed", refreshCounts);
     };
   }, [loadClientReservationUpdates, loadPendingPartnerReservations, user]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadUserRole() {
+      const { data } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      const nextRole = data?.role || "";
+      setUserRole(nextRole);
+
+      if (nextRole === "admin") {
+        setHasPartnerReservations(false);
+        setPendingPartnerReservations(0);
+        setClientReservationUpdates(0);
+      }
+    }
+
+    loadUserRole();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -314,10 +402,14 @@ export default function AuthMenu({ onCloseMobileMenu }) {
 
   const displayName =
     user?.user_metadata?.full_name || user?.email || "Vartotojas";
+  const isAdmin = userRole === "admin";
+  const profileHref = isAdmin ? "/admin" : "/account";
   const hasPendingPartnerReservations = pendingPartnerReservations > 0;
-  const notificationCount = hasPendingPartnerReservations
-    ? pendingPartnerReservations
-    : clientReservationUpdates;
+  const notificationCount = isAdmin
+    ? 0
+    : hasPendingPartnerReservations
+      ? pendingPartnerReservations
+      : clientReservationUpdates;
   const hasNotifications = notificationCount > 0;
   const notificationLabel =
     notificationCount > 99 ? "99+" : String(notificationCount);
@@ -349,7 +441,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
       {/* Mobile: tiesioginiai mygtukai be dropdown */}
       <div className="md:hidden flex items-center gap-2">
         <Link
-          href={user ? "/account" : "/prisijungti"}
+          href={user ? profileHref : "/prisijungti"}
           onClick={handleLinkClick}
           aria-label="Vartotojo meniu"
           className="relative flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -362,7 +454,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
           )}
         </Link>
 
-        {user && hasPendingPartnerReservations && (
+        {user && !isAdmin && hasPendingPartnerReservations && (
           <Link
             href="/partner/rezervacijos"
             onClick={handleLinkClick}
@@ -419,7 +511,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
                   </p>
                 </div>
                 <Link
-                  href="/account"
+                  href={profileHref}
                   onClick={handleLinkClick}
                   className={`ui-font flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-left text-sm font-bold ${
                     clientReservationUpdates > 0 && !hasPendingPartnerReservations
@@ -428,22 +520,24 @@ export default function AuthMenu({ onCloseMobileMenu }) {
                   }`}
                 >
                   <span className="flex items-center gap-2">
-                    <CircleUser size={18} />
-                    Mano paskyra
+                    {isAdmin ? <ShieldCheck size={18} /> : <CircleUser size={18} />}
+                    {isAdmin ? "Administravimas" : "Mano paskyra"}
                   </span>
-                  {clientReservationUpdates > 0 && !hasPendingPartnerReservations && (
+                  {!isAdmin &&
+                    clientReservationUpdates > 0 &&
+                    !hasPendingPartnerReservations && (
                     <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
                       {clientReservationUpdates > 99
                         ? "99+"
                         : clientReservationUpdates}
                     </span>
-                  )}
+                    )}
                 </Link>
                 <Link
                   href="/partner/rezervacijos"
                   onClick={handleLinkClick}
                   className={`ui-font ${
-                    hasPartnerReservations ? "flex" : "hidden"
+                    hasPartnerReservations && !isAdmin ? "flex" : "hidden"
                   } w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-left text-sm font-bold ${
                     hasPendingPartnerReservations
                       ? "bg-amber-50 text-amber-800 hover:bg-amber-100"
@@ -464,7 +558,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
                   href="/account#rezervacijos"
                   onClick={handleLinkClick}
                   className={`ui-font ${
-                    !hasPartnerReservations ? "flex" : "hidden"
+                    !hasPartnerReservations && !isAdmin ? "flex" : "hidden"
                   } w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-left text-sm font-bold ${
                     clientReservationUpdates > 0
                       ? "bg-amber-50 text-amber-800 hover:bg-amber-100"

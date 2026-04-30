@@ -446,7 +446,9 @@ export default function PartnerServicesPage() {
       pricePerUnit: String(service.price_per_unit ?? ""),
       unitsOfMeasure: service.units_of_measure || "unit",
       durationMinutes:
-        service.duration_minutes == null ? "" : String(service.duration_minutes),
+        service.duration_minutes == null
+          ? ""
+          : String(service.duration_minutes),
       isListed: service.is_listed !== false,
       isGlobal: Boolean(service.is_global),
       shortDescription: service.short_description || "",
@@ -467,7 +469,8 @@ export default function PartnerServicesPage() {
     setEditForm((current) => ({
       ...current,
       [field]: value,
-      ...(field === "serviceType" && !SERVICE_TYPES_WITH_DURATION.includes(value)
+      ...(field === "serviceType" &&
+      !SERVICE_TYPES_WITH_DURATION.includes(value)
         ? { durationMinutes: "" }
         : {}),
     }));
@@ -829,7 +832,7 @@ export default function PartnerServicesPage() {
 
             <button
               type="button"
-              onClick={() => router.push("/partner/paslaugu-uzklausos")}
+              onClick={() => router.push("/partner/paslaugu-užklausos")}
               className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white shadow-md transition hover:bg-dark"
             >
               Peržiūrėti paslaugų užklausas
@@ -977,7 +980,9 @@ export default function PartnerServicesPage() {
                     disabled={deletingServiceId === service.id}
                     className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-red-200 bg-red-50 px-[16px] text-[14px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {deletingServiceId === service.id ? "Trinama..." : "Ištrinti"}
+                    {deletingServiceId === service.id
+                      ? "Trinama..."
+                      : "Ištrinti"}
                   </button>
                 </div>
               </article>
@@ -1032,7 +1037,9 @@ export default function PartnerServicesPage() {
                 <input
                   type="text"
                   value={providerForm.address}
-                  onChange={(e) => updateProviderForm("address", e.target.value)}
+                  onChange={(e) =>
+                    updateProviderForm("address", e.target.value)
+                  }
                   placeholder="Adresas"
                   className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
                 />
@@ -1068,7 +1075,9 @@ export default function PartnerServicesPage() {
                 <input
                   type="text"
                   value={providerForm.website}
-                  onChange={(e) => updateProviderForm("website", e.target.value)}
+                  onChange={(e) =>
+                    updateProviderForm("website", e.target.value)
+                  }
                   placeholder="Svetainė"
                   className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
                 />

@@ -47,6 +47,31 @@ function formatTimeRange(startTime, endTime) {
   return end ? `${start} - ${end}` : start || "-";
 }
 
+function normalizeSearchValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function orderMatchesSearch(order, searchValue) {
+  const query = normalizeSearchValue(searchValue);
+  if (!query) return true;
+
+  const booking = order?.booking || {};
+  const room = booking.room || {};
+  const venue = room.venue || {};
+  const fields = [
+    booking.reservation_code,
+    booking.guest_name,
+    booking.guest_email,
+    booking.guest_phone,
+    room.name,
+    venue.name,
+  ];
+
+  return fields.some((field) =>
+    normalizeSearchValue(field).includes(query),
+  );
+}
+
 function createSyntheticRoomApproval(booking) {
   return {
     id: `synthetic-venue-${booking.id}`,
@@ -107,6 +132,84 @@ function pickBestApproval(current, candidate) {
   }
 
   return b[2] >= a[2] ? candidate : current;
+}
+
+function getPartnerReservationSeenStorageKey(userId) {
+  return `seen_partner_reservations:${userId}`;
+}
+
+function getPartnerPendingServiceKey({ bookingId, serviceId, approval }) {
+  return `service:${bookingId}:${serviceId || "none"}:${
+    approval?.id || approval?.provider_id || "none"
+  }`;
+}
+
+function getPartnerPendingVenueKey({ booking, approval }) {
+  return `venue:${booking.id}:${
+    approval?.id || approval?.venue_id || booking.room?.venue_id || "booking"
+  }`;
+}
+
+function getPendingPartnerReservationKeys(orders) {
+  return (orders || []).flatMap((order) => {
+    const keys = [];
+    const booking = order.booking || {};
+
+    if (order.viewerCanManageRoom && order.roomApproval?.status === "pending") {
+      keys.push(
+        getPartnerPendingVenueKey({
+          booking,
+          approval: order.roomApproval,
+        }),
+      );
+    }
+
+    (order.services || []).forEach((item) => {
+      if (item.canManage && item.approval?.status === "pending") {
+        keys.push(
+          getPartnerPendingServiceKey({
+            bookingId: booking.id,
+            serviceId: item.service_id,
+            approval: item.approval,
+          }),
+        );
+      }
+    });
+
+    return keys;
+  });
+}
+
+function markPendingPartnerReservationsSeen(userId, orders) {
+  if (typeof window === "undefined" || !userId) return;
+
+  const keys = getPendingPartnerReservationKeys(orders);
+  if (!keys.length) return;
+
+  let currentSeen = {};
+
+  try {
+    currentSeen = JSON.parse(
+      localStorage.getItem(getPartnerReservationSeenStorageKey(userId)) || "{}",
+    );
+  } catch {
+    currentSeen = {};
+  }
+
+  const nextSeen = keys.reduce(
+    (map, key) => ({
+      ...map,
+      [key]: true,
+    }),
+    currentSeen,
+  );
+
+  localStorage.setItem(
+    getPartnerReservationSeenStorageKey(userId),
+    JSON.stringify(nextSeen),
+  );
+
+  window.dispatchEvent(new CustomEvent("partner-reservations-changed"));
 }
 
 async function saveApprovalDecision({ target, nowIso, nextStatus }) {
@@ -237,37 +340,70 @@ function decorateOrder(order, venueId, providerId) {
 
   const services = (order.services || []).map((item) => ({
     ...item,
-    canManage: Boolean(
-      providerId && item.service?.provider_id === providerId,
-    ),
+    canManage: Boolean(providerId && item.service?.provider_id === providerId),
   }));
 
   const pendingForViewer =
     (viewerCanManageRoom && order.roomApproval.status === "pending") ||
-    services.some((item) => item.canManage && item.approval.status === "pending");
+    services.some(
+      (item) => item.canManage && item.approval.status === "pending",
+    );
 
-  const hasRejected =
-    order.roomApproval.status === "rejected" ||
-    services.some((item) => item.approval.status === "rejected");
+  const manageableServices = services.filter((item) => item.canManage);
+  const serviceStatusForViewer =
+    manageableServices.length === 0
+      ? null
+      : manageableServices.some((item) => item.approval.status === "pending")
+        ? "pending"
+        : manageableServices.some((item) => item.approval.status === "rejected")
+          ? "rejected"
+          : manageableServices.every(
+                (item) => item.approval.status === "confirmed",
+              )
+            ? "confirmed"
+            : "pending";
 
-  const allConfirmed =
-    order.roomApproval.status === "confirmed" &&
-    services.every((item) => item.approval.status === "confirmed");
+  const summaryStatus = viewerCanManageRoom
+    ? order.roomApproval.status || "pending"
+    : serviceStatusForViewer || order.roomApproval.status || "pending";
 
   return {
     ...order,
     viewerCanManageRoom,
     services,
     pendingForViewer,
-    summaryStatus: hasRejected ? "rejected" : allConfirmed ? "confirmed" : "pending",
+    summaryStatus,
   };
 }
 
-function buildOrders({ bookings, bookingServices, approvals, venueId, providerId }) {
+function buildOrders({
+  bookings,
+  bookingServices,
+  approvals,
+  venueId,
+  providerId,
+}) {
   const approvalsByBooking = new Map();
   const servicesByBooking = new Map();
+  const bookingsById = new Map(
+    (bookings || []).map((booking) => [booking.id, booking]),
+  );
 
   (approvals || []).forEach((approval) => {
+    if (approval.booking && !bookingsById.has(approval.booking_id)) {
+      bookingsById.set(approval.booking_id, {
+        id: approval.booking_id,
+        ...approval.booking,
+      });
+    } else if (approval.booking) {
+      const currentBooking = bookingsById.get(approval.booking_id);
+      bookingsById.set(approval.booking_id, {
+        ...approval.booking,
+        ...currentBooking,
+        room: currentBooking?.room || approval.booking.room || null,
+      });
+    }
+
     if (!approvalsByBooking.has(approval.booking_id)) {
       approvalsByBooking.set(approval.booking_id, new Map());
     }
@@ -277,7 +413,9 @@ function buildOrders({ bookings, bookingServices, approvals, venueId, providerId
         ? `service:${approval.service_id}`
         : `venue:${approval.venue_id || "none"}`;
 
-    const current = approvalsByBooking.get(approval.booking_id).get(approvalKey);
+    const current = approvalsByBooking
+      .get(approval.booking_id)
+      .get(approvalKey);
     approvalsByBooking
       .get(approval.booking_id)
       .set(approvalKey, pickBestApproval(current, approval));
@@ -289,9 +427,34 @@ function buildOrders({ bookings, bookingServices, approvals, venueId, providerId
     }
 
     servicesByBooking.get(item.booking_id).push(item);
+
+    if (item.booking && !bookingsById.has(item.booking_id)) {
+      bookingsById.set(item.booking_id, {
+        id: item.booking_id,
+        ...item.booking,
+      });
+    } else if (item.booking) {
+      const currentBooking = bookingsById.get(item.booking_id);
+      bookingsById.set(item.booking_id, {
+        ...item.booking,
+        ...currentBooking,
+        room: currentBooking?.room || item.booking.room || null,
+      });
+    }
   });
 
-  return [...(bookings || [])]
+  (approvals || []).forEach((approval) => {
+    if (!bookingsById.has(approval.booking_id)) {
+      bookingsById.set(approval.booking_id, {
+        id: approval.booking_id,
+        status: "pending",
+        created_at: approval.created_at || null,
+        room: null,
+      });
+    }
+  });
+
+  return [...bookingsById.values()]
     .map((booking) => {
       const approvalRows = Array.from(
         approvalsByBooking.get(booking.id)?.values() || [],
@@ -315,6 +478,31 @@ function buildOrders({ bookings, bookingServices, approvals, venueId, providerId
           };
         },
       );
+
+      approvalRows
+        .filter((approval) => approval.approval_type === "service")
+        .forEach((approval) => {
+          const alreadyHasService = serviceItems.some(
+            (item) => item.service_id === approval.service_id,
+          );
+
+          if (alreadyHasService) {
+            return;
+          }
+
+          serviceItems.push({
+            booking_id: booking.id,
+            service_id: approval.service_id,
+            price_per_unit: null,
+            units_of_measure: null,
+            service: approval.service || {
+              id: approval.service_id,
+              provider_id: approval.provider_id,
+              name: "Paslauga",
+            },
+            approval,
+          });
+        });
 
       return decorateOrder(
         {
@@ -352,6 +540,10 @@ export default function PartnerReservationsPage() {
   const [orders, setOrders] = useState([]);
   const [activeOrderId, setActiveOrderId] = useState("");
   const [processingKey, setProcessingKey] = useState("");
+  const [processedTab, setProcessedTab] = useState("confirmed");
+  const [reservationSearch, setReservationSearch] = useState("");
+  const [processedDateFrom, setProcessedDateFrom] = useState("");
+  const [processedDateTo, setProcessedDateTo] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -374,21 +566,23 @@ export default function PartnerReservationsPage() {
           return;
         }
 
-        const [{ data: venueRow, error: venueError }, { data: providerRow, error: providerError }] =
-          await Promise.all([
-            supabase
-              .from("venues")
-              .select("id, name, city")
-              .eq("owner_id", user.id)
-              .limit(1)
-              .maybeSingle(),
-            supabase
-              .from("service_providers")
-              .select("id, name, city")
-              .eq("owner_id", user.id)
-              .limit(1)
-              .maybeSingle(),
-          ]);
+        const [
+          { data: venueRow, error: venueError },
+          { data: providerRow, error: providerError },
+        ] = await Promise.all([
+          supabase
+            .from("venues")
+            .select("id, name, city")
+            .eq("owner_id", user.id)
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("service_providers")
+            .select("id, name, city")
+            .eq("owner_id", user.id)
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
         if (!isMounted) return;
 
@@ -423,8 +617,11 @@ export default function PartnerReservationsPage() {
         }
 
         if (providerRow?.id) {
-          const { data: providerBookingRows, error: providerBookingsError } =
-            await supabase
+          const [
+            { data: providerBookingRows, error: providerBookingsError },
+            { data: providerApprovalRows, error: providerApprovalsError },
+          ] = await Promise.all([
+            supabase
               .from("booking_services")
               .select(
                 `
@@ -434,12 +631,25 @@ export default function PartnerReservationsPage() {
                 )
               `,
               )
-              .eq("service.provider_id", providerRow.id);
+              .eq("service.provider_id", providerRow.id),
+            supabase
+              .from("booking_approvals")
+              .select("booking_id")
+              .eq("approval_type", "service")
+              .eq("provider_id", providerRow.id),
+          ]);
 
           if (!isMounted) return;
           if (providerBookingsError) throw providerBookingsError;
+          if (providerApprovalsError) throw providerApprovalsError;
 
           (providerBookingRows || []).forEach((row) => {
+            if (row.booking_id) {
+              bookingIdSet.add(row.booking_id);
+            }
+          });
+
+          (providerApprovalRows || []).forEach((row) => {
             if (row.booking_id) {
               bookingIdSet.add(row.booking_id);
             }
@@ -450,19 +660,20 @@ export default function PartnerReservationsPage() {
 
         if (!bookingIds.length) {
           setOrders([]);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("partner-reservations-changed"));
+          }
           return;
         }
 
-        const [
-          bookingsRes,
-          bookingServicesRes,
-          approvalsRes,
-        ] = await Promise.all([
-          supabase
-            .from("bookings")
-            .select(
-              `
+        const [bookingsRes, bookingServicesRes, approvalsRes] =
+          await Promise.all([
+            supabase
+              .from("bookings")
+              .select(
+                `
               id,
+              reservation_code,
               room_id,
               status,
               event_date,
@@ -477,7 +688,7 @@ export default function PartnerReservationsPage() {
               num_adults,
               total_price,
               total_amount,
-              room:rooms!inner (
+              room:rooms (
                 id,
                 name,
                 city,
@@ -489,16 +700,45 @@ export default function PartnerReservationsPage() {
                 )
               )
             `,
-            )
-            .in("id", bookingIds),
-          supabase
-            .from("booking_services")
-            .select(
-              `
+              )
+              .in("id", bookingIds),
+            supabase
+              .from("booking_services")
+              .select(
+                `
               booking_id,
               service_id,
               price_per_unit,
               units_of_measure,
+              booking:bookings!booking_services_booking_id_fkey (
+                id,
+                reservation_code,
+                room_id,
+                status,
+                event_date,
+                start_time,
+                end_time,
+                created_at,
+                guest_name,
+                guest_email,
+                guest_phone,
+                note,
+                num_children,
+                num_adults,
+                total_price,
+                total_amount,
+                room:rooms (
+                  id,
+                  name,
+                  city,
+                  venue_id,
+                  venue:venues (
+                    name,
+                    address,
+                    city
+                  )
+                )
+              ),
               service:services (
                 id,
                 provider_id,
@@ -514,25 +754,68 @@ export default function PartnerReservationsPage() {
                 )
               )
             `,
-            )
-            .in("booking_id", bookingIds),
-          supabase
-            .from("booking_approvals")
-            .select(
-              `
+              )
+              .in("booking_id", bookingIds),
+            supabase
+              .from("booking_approvals")
+              .select(
+                `
               id,
               booking_id,
               approval_type,
               venue_id,
               provider_id,
               service_id,
+              booking:bookings!booking_approvals_booking_id_fkey (
+                id,
+                reservation_code,
+                room_id,
+                status,
+                event_date,
+                start_time,
+                end_time,
+                created_at,
+                guest_name,
+                guest_email,
+                guest_phone,
+                note,
+                num_children,
+                num_adults,
+                total_price,
+                total_amount,
+                room:rooms (
+                  id,
+                  name,
+                  city,
+                  venue_id,
+                  venue:venues (
+                    name,
+                    address,
+                    city
+                  )
+                )
+              ),
+              service:services (
+                id,
+                provider_id,
+                venue_id,
+                room_id,
+                name,
+                service_type,
+                short_description,
+                duration_minutes,
+                provider:service_providers (
+                  id,
+                  name
+                )
+              ),
               status,
               responded_at,
               created_at
             `,
-            )
-            .in("booking_id", bookingIds),
-        ]);
+              )
+              .in("booking_id", bookingIds),
+          ]);
 
         if (!isMounted) return;
 
@@ -540,15 +823,16 @@ export default function PartnerReservationsPage() {
         if (bookingServicesRes.error) throw bookingServicesRes.error;
         if (approvalsRes.error) throw approvalsRes.error;
 
-        setOrders(
-          buildOrders({
+        const nextOrders = buildOrders({
             bookings: bookingsRes.data || [],
             bookingServices: bookingServicesRes.data || [],
             approvals: approvalsRes.data || [],
             venueId: venueRow?.id || null,
             providerId: providerRow?.id || null,
-          }),
-        );
+          });
+
+        setOrders(nextOrders);
+        markPendingPartnerReservationsSeen(user.id, nextOrders);
       } catch (error) {
         console.error("partner reservations load error:", error);
         if (isMounted) {
@@ -574,7 +858,9 @@ export default function PartnerReservationsPage() {
 
     try {
       const nowIso = new Date().toISOString();
-      const currentOrder = orders.find((order) => order.id === target.bookingId);
+      const currentOrder = orders.find(
+        (order) => order.id === target.bookingId,
+      );
       const approvalError = await saveApprovalDecision({
         target,
         nowIso,
@@ -595,7 +881,10 @@ export default function PartnerReservationsPage() {
           throw approvalError;
         }
 
-        if (target.nextStatus === "rejected" && currentOrder?.services?.length) {
+        if (
+          target.nextStatus === "rejected" &&
+          currentOrder?.services?.length
+        ) {
           const serviceErrors = await Promise.all(
             currentOrder.services.map((item) =>
               saveApprovalDecision({
@@ -680,6 +969,10 @@ export default function PartnerReservationsPage() {
           );
         }),
       );
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("partner-reservations-changed"));
+      }
     } catch (error) {
       console.warn("reservation decision warning:", {
         message: error?.message,
@@ -688,19 +981,67 @@ export default function PartnerReservationsPage() {
         code: error?.code,
         raw: error,
       });
-      setErrorMsg("Nepavyko issaugoti rezervacijos sprendimo.");
+      setErrorMsg("Nepavyko išsaugoti rezervacijos sprendimo.");
     } finally {
       setProcessingKey("");
     }
   }
 
-  const grouped = useMemo(
-    () => ({
+  const grouped = useMemo(() => {
+    const processed = orders.filter(
+      (order) =>
+        !order.pendingForViewer &&
+        (order.summaryStatus === "confirmed" ||
+          order.summaryStatus === "rejected"),
+    );
+
+    return {
       pending: orders.filter((order) => order.pendingForViewer),
-      processed: orders.filter((order) => !order.pendingForViewer),
-    }),
-    [orders],
+      processed,
+      confirmed: processed.filter(
+        (order) => order.summaryStatus === "confirmed",
+      ),
+      rejected: processed.filter((order) => order.summaryStatus === "rejected"),
+    };
+  }, [orders]);
+
+  const filteredPendingOrders = useMemo(
+    () =>
+      grouped.pending.filter((order) =>
+        orderMatchesSearch(order, reservationSearch),
+      ),
+    [grouped.pending, reservationSearch],
   );
+
+  const filteredProcessedOrders = useMemo(() => {
+    const source =
+      processedTab === "rejected" ? grouped.rejected : grouped.confirmed;
+
+    return source.filter((order) => {
+      if (!orderMatchesSearch(order, reservationSearch)) {
+        return false;
+      }
+
+      const eventDate = order.booking?.event_date || "";
+
+      if (processedDateFrom && eventDate < processedDateFrom) {
+        return false;
+      }
+
+      if (processedDateTo && eventDate > processedDateTo) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [
+    grouped.confirmed,
+    grouped.rejected,
+    processedDateFrom,
+    processedDateTo,
+    processedTab,
+    reservationSearch,
+  ]);
 
   const activeOrder = useMemo(
     () => orders.find((order) => order.id === activeOrderId) || null,
@@ -720,7 +1061,7 @@ export default function PartnerReservationsPage() {
               Rezervacijos
             </p>
             <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-              Klientu uzsakymai
+              Klientu užsakymai
             </h1>
             <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
               Vienoje vietoje matysite kambario rezervacija ir visas su ja
@@ -733,7 +1074,8 @@ export default function PartnerReservationsPage() {
             )}
             {provider && (
               <p className="mt-[4px] ui-font text-[14px] text-slate-500">
-                Paslaugos: <span className="font-semibold">{provider.name}</span>
+                Paslaugos:{" "}
+                <span className="font-semibold">{provider.name}</span>
               </p>
             )}
           </div>
@@ -743,7 +1085,7 @@ export default function PartnerReservationsPage() {
             onClick={() => router.push("/partner")}
             className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Grizti i partnerio valdyma
+            Grįžti į paskyros valdymą
           </button>
         </div>
 
@@ -753,32 +1095,47 @@ export default function PartnerReservationsPage() {
           </div>
         )}
 
+        <div className="mb-[20px] max-w-[420px]">
+          <label className="ui-font text-[12px] font-semibold text-slate-500">
+            Paieska pagal rezervacijos Nr.
+            <input
+              type="search"
+              value={reservationSearch}
+              onChange={(event) => setReservationSearch(event.target.value)}
+              placeholder="Pvz. NP-202604-000123"
+              className="mt-[6px] h-[42px] w-full rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] text-slate-800 outline-none transition focus:border-primary"
+            />
+          </label>
+        </div>
+
         <section className="space-y-[24px]">
           <div>
             <div className="mb-[14px] flex items-center justify-between">
               <h2 className="ui-font text-[24px] font-semibold text-slate-900">
-                Laukiancios uzklausos
+                Laukiancios užklausos
               </h2>
               <span className="ui-font text-[14px] text-slate-500">
-                Is viso: {grouped.pending.length}
+                Is viso: {filteredPendingOrders.length}
               </span>
             </div>
 
-            {grouped.pending.length === 0 ? (
+            {filteredPendingOrders.length === 0 ? (
               <div className="rounded-[28px] border border-dashed border-slate-300 bg-white px-[24px] py-[28px] text-center">
                 <p className="ui-font text-[15px] text-slate-600">
-                  Siuo metu nera laukianciu uzsakymu.
+                  Šiuo metu nėra laukiančių užsakymų.
                 </p>
               </div>
             ) : (
               <div className="space-y-[16px]">
-                {grouped.pending.map((order) => {
+                {filteredPendingOrders.map((order) => {
                   const booking = order.booking || {};
                   const room = booking.room || {};
                   const pendingServiceCount = order.services.filter(
-                    (item) => item.canManage && item.approval.status === "pending",
+                    (item) =>
+                      item.canManage && item.approval.status === "pending",
                   ).length;
-                  const pendingRoom = order.viewerCanManageRoom &&
+                  const pendingRoom =
+                    order.viewerCanManageRoom &&
                     order.roomApproval.status === "pending";
 
                   return (
@@ -801,6 +1158,11 @@ export default function PartnerReservationsPage() {
                             </span>
                           </div>
 
+                          <p className="ui-font text-[12px] font-semibold uppercase tracking-[0.08em] text-primary">
+                            {booking.reservation_code ||
+                              "Rezervacijos Nr. nepaskirtas"}
+                          </p>
+
                           <div className="grid gap-[10px] md:grid-cols-2 xl:grid-cols-4">
                             <div className="rounded-[18px] bg-slate-50 p-[12px]">
                               <p className="ui-font text-[12px] text-slate-500">
@@ -816,7 +1178,10 @@ export default function PartnerReservationsPage() {
                                 Laikas
                               </p>
                               <p className="mt-[4px] ui-font text-[14px] font-semibold text-slate-800">
-                                {formatTimeRange(booking.start_time, booking.end_time)}
+                                {formatTimeRange(
+                                  booking.start_time,
+                                  booking.end_time,
+                                )}
                               </p>
                             </div>
 
@@ -834,32 +1199,13 @@ export default function PartnerReservationsPage() {
                                 Bendra suma
                               </p>
                               <p className="mt-[4px] ui-font text-[14px] font-semibold text-slate-800">
-                                {formatPrice(booking.total_amount ?? booking.total_price)}
+                                {formatPrice(
+                                  booking.total_amount ?? booking.total_price,
+                                )}
                               </p>
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap gap-[8px]">
-                            <span
-                              className={`ui-font inline-flex items-center rounded-full px-[12px] py-[6px] text-[12px] font-medium ${getStatusClassName(
-                                order.roomApproval.status,
-                              )}`}
-                            >
-                              Kambarys: {getStatusLabel(order.roomApproval.status)}
-                            </span>
-
-                            {order.services.map((item) => (
-                              <span
-                                key={`${order.id}:${item.service_id}`}
-                                className={`ui-font inline-flex items-center rounded-full px-[12px] py-[6px] text-[12px] font-medium ${getStatusClassName(
-                                  item.approval.status,
-                                )}`}
-                              >
-                                {item.service?.name || "Paslauga"}:{" "}
-                                {getStatusLabel(item.approval.status)}
-                              </span>
-                            ))}
-                          </div>
                         </div>
 
                         <div className="min-w-[220px]">
@@ -889,24 +1235,91 @@ export default function PartnerReservationsPage() {
           </div>
 
           <div>
-            <div className="mb-[14px] flex items-center justify-between">
-              <h2 className="ui-font text-[24px] font-semibold text-slate-900">
-                Apdoroti uzsakymai
-              </h2>
-              <span className="ui-font text-[14px] text-slate-500">
-                Is viso: {grouped.processed.length}
-              </span>
+            <div className="mb-[14px] flex flex-col gap-[14px]">
+              <div className="flex items-center justify-between">
+                <h2 className="ui-font text-[24px] font-semibold text-slate-900">
+                  Apdoroti užsakymai
+                </h2>
+                <span className="ui-font text-[14px] text-slate-500">
+                  Is viso: {filteredProcessedOrders.length}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-[12px] rounded-[24px] bg-white p-[14px] shadow-sm lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex flex-wrap gap-[8px]">
+                  {[
+                    {
+                      key: "confirmed",
+                      label: "Patvirtinti",
+                      count: grouped.confirmed.length,
+                    },
+                    {
+                      key: "rejected",
+                      label: "Atmesti",
+                      count: grouped.rejected.length,
+                    },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setProcessedTab(tab.key)}
+                      className={`ui-font inline-flex h-[40px] items-center justify-center rounded-[14px] px-[14px] text-[14px] font-semibold transition ${
+                        processedTab === tab.key
+                          ? "bg-primary text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {tab.label} ({tab.count})
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid gap-[10px] sm:grid-cols-[1fr_1fr_auto]">
+                  <label className="ui-font text-[12px] font-semibold text-slate-500">
+                    Nuo
+                    <input
+                      type="date"
+                      value={processedDateFrom}
+                      onChange={(event) =>
+                        setProcessedDateFrom(event.target.value)
+                      }
+                      className="mt-[6px] h-[40px] w-full rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] text-slate-700 outline-none transition focus:border-primary"
+                    />
+                  </label>
+                  <label className="ui-font text-[12px] font-semibold text-slate-500">
+                    Iki
+                    <input
+                      type="date"
+                      value={processedDateTo}
+                      onChange={(event) =>
+                        setProcessedDateTo(event.target.value)
+                      }
+                      className="mt-[6px] h-[40px] w-full rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] text-slate-700 outline-none transition focus:border-primary"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProcessedDateFrom("");
+                      setProcessedDateTo("");
+                    }}
+                    className="ui-font h-[40px] self-end rounded-[14px] border border-slate-200 bg-white px-[14px] text-[14px] font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Valyti
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {grouped.processed.length === 0 ? (
+            {filteredProcessedOrders.length === 0 ? (
               <div className="rounded-[28px] border border-dashed border-slate-300 bg-white px-[24px] py-[28px] text-center">
                 <p className="ui-font text-[15px] text-slate-600">
-                  Dar nera apdorotu uzsakymu.
+                  Nurodytomis dienomis užsakymų nėra..
                 </p>
               </div>
             ) : (
               <div className="space-y-[14px]">
-                {grouped.processed.map((order) => {
+                {filteredProcessedOrders.map((order) => {
                   const booking = order.booking || {};
                   const room = booking.room || {};
 
@@ -930,14 +1343,24 @@ export default function PartnerReservationsPage() {
                             </span>
                           </div>
 
+                          <p className="mt-[6px] ui-font text-[12px] font-semibold uppercase tracking-[0.08em] text-primary">
+                            {booking.reservation_code ||
+                              "Rezervacijos Nr. nepaskirtas"}
+                          </p>
+
                           <p className="mt-[6px] ui-font text-[14px] text-slate-600">
                             {booking.event_date || "-"} •{" "}
-                            {formatTimeRange(booking.start_time, booking.end_time)}
+                            {formatTimeRange(
+                              booking.start_time,
+                              booking.end_time,
+                            )}
                           </p>
 
                           <p className="mt-[4px] ui-font text-[13px] text-slate-500">
                             {booking.guest_name || "-"} •{" "}
-                            {formatPrice(booking.total_amount ?? booking.total_price)}
+                            {formatPrice(
+                              booking.total_amount ?? booking.total_price,
+                            )}
                           </p>
                         </div>
 

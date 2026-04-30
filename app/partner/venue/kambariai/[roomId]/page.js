@@ -76,73 +76,77 @@ export default function EditRoomPage() {
     };
   }, [newFilePreviews]);
 
-  const loadRoomData = useCallback(async (ownerId) => {
-    const { data: roomRow, error: roomError } = await supabase
-      .from("rooms")
-      .select(
-        "id, venue_id, name, description, price, extra_hour_price, capacity, city, duration_minutes, buffer_minutes, min_age, max_age",
-      )
-      .eq("id", roomId)
-      .maybeSingle();
+  const loadRoomData = useCallback(
+    async (ownerId) => {
+      const { data: roomRow, error: roomError } = await supabase
+        .from("rooms")
+        .select(
+          "id, venue_id, name, description, price, extra_hour_price, capacity, city, duration_minutes, buffer_minutes, min_age, max_age",
+        )
+        .eq("id", roomId)
+        .maybeSingle();
 
-    if (roomError) throw roomError;
-    if (!roomRow) {
-      router.replace("/partner/venue");
-      return;
-    }
+      if (roomError) throw roomError;
+      if (!roomRow) {
+        router.replace("/partner/venue");
+        return;
+      }
 
-    const { data: venueRow, error: venueError } = await supabase
-      .from("venues")
-      .select("id, owner_id")
-      .eq("id", roomRow.venue_id)
-      .eq("owner_id", ownerId)
-      .maybeSingle();
+      const { data: venueRow, error: venueError } = await supabase
+        .from("venues")
+        .select("id, owner_id")
+        .eq("id", roomRow.venue_id)
+        .eq("owner_id", ownerId)
+        .maybeSingle();
 
-    if (venueError) throw venueError;
-    if (!venueRow) {
-      router.replace("/partner/venue");
-      return;
-    }
+      if (venueError) throw venueError;
+      if (!venueRow) {
+        router.replace("/partner/venue");
+        return;
+      }
 
-    const [{ data: availabilityRows }, { data: imageRows }] = await Promise.all([
-      supabase
-        .from("availability")
-        .select("id, weekday, start_time, end_time")
-        .eq("room_id", roomId)
-        .order("weekday", { ascending: true }),
-      supabase
-        .from("images")
-        .select("id, path, position, is_primary, is_cover")
-        .eq("room_id", roomId)
-        .order("position", { ascending: true }),
-    ]);
+      const [{ data: availabilityRows }, { data: imageRows }] =
+        await Promise.all([
+          supabase
+            .from("availability")
+            .select("id, weekday, start_time, end_time")
+            .eq("room_id", roomId)
+            .order("weekday", { ascending: true }),
+          supabase
+            .from("images")
+            .select("id, path, position, is_primary, is_cover")
+            .eq("room_id", roomId)
+            .order("position", { ascending: true }),
+        ]);
 
-    setRoom(roomRow);
-    setVenueId(roomRow.venue_id);
-    setRoomName(roomRow.name || "");
-    setDescription(roomRow.description || "");
-    setPrice(String(roomRow.price ?? ""));
-    setExtraHourPrice(String(roomRow.extra_hour_price ?? ""));
-    setCapacity(String(roomRow.capacity ?? ""));
-    setCity(roomRow.city || "");
-    setDurationMinutes(String(roomRow.duration_minutes ?? "120"));
-    setBufferMinutes(String(roomRow.buffer_minutes ?? "0"));
-    setMinAge(roomRow.min_age == null ? "" : String(roomRow.min_age));
-    setMaxAge(roomRow.max_age == null ? "" : String(roomRow.max_age));
+      setRoom(roomRow);
+      setVenueId(roomRow.venue_id);
+      setRoomName(roomRow.name || "");
+      setDescription(roomRow.description || "");
+      setPrice(String(roomRow.price ?? ""));
+      setExtraHourPrice(String(roomRow.extra_hour_price ?? ""));
+      setCapacity(String(roomRow.capacity ?? ""));
+      setCity(roomRow.city || "");
+      setDurationMinutes(String(roomRow.duration_minutes ?? "120"));
+      setBufferMinutes(String(roomRow.buffer_minutes ?? "0"));
+      setMinAge(roomRow.min_age == null ? "" : String(roomRow.min_age));
+      setMaxAge(roomRow.max_age == null ? "" : String(roomRow.max_age));
 
-    if (availabilityRows?.length) {
-      setSelectedDays(availabilityRows.map((item) => item.weekday));
-      setOpenTime(String(availabilityRows[0].start_time || "").slice(0, 5));
-      setCloseTime(String(availabilityRows[0].end_time || "").slice(0, 5));
-    }
+      if (availabilityRows?.length) {
+        setSelectedDays(availabilityRows.map((item) => item.weekday));
+        setOpenTime(String(availabilityRows[0].start_time || "").slice(0, 5));
+        setCloseTime(String(availabilityRows[0].end_time || "").slice(0, 5));
+      }
 
-    setImages(
-      (imageRows || []).map((item) => ({
-        ...item,
-        publicUrl: getPublicUrl(item.path),
-      })),
-    );
-  }, [roomId, router]);
+      setImages(
+        (imageRows || []).map((item) => ({
+          ...item,
+          publicUrl: getPublicUrl(item.path),
+        })),
+      );
+    },
+    [roomId, router],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -214,7 +218,8 @@ export default function EditRoomPage() {
             extraHourPrice === "" ? null : Number(extraHourPrice),
           capacity: capacity === "" ? null : Number(capacity),
           city: city.trim() || null,
-          duration_minutes: durationMinutes === "" ? null : Number(durationMinutes),
+          duration_minutes:
+            durationMinutes === "" ? null : Number(durationMinutes),
           buffer_minutes: bufferMinutes === "" ? 0 : Number(bufferMinutes),
           min_age: minAge === "" ? null : Number(minAge),
           max_age: maxAge === "" ? null : Number(maxAge),
@@ -244,7 +249,7 @@ export default function EditRoomPage() {
       setSuccessMsg("Kambario informacija issaugota.");
     } catch (error) {
       console.error("save room error:", error);
-      setErrorMsg("Nepavyko issaugoti kambario informacijos.");
+      setErrorMsg("Nepavyko išsaugoti kambario informacijos.");
     } finally {
       setSubmitting(false);
     }
@@ -361,7 +366,9 @@ export default function EditRoomPage() {
         <div className="flex flex-col gap-[10px] sm:flex-row">
           <button
             type="button"
-            onClick={() => router.push(`/partner/venue/kambariai/${roomId}/paslaugos`)}
+            onClick={() =>
+              router.push(`/partner/venue/kambariai/${roomId}/paslaugos`)
+            }
             className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
           >
             Valdyti kambario paslaugas
@@ -372,7 +379,7 @@ export default function EditRoomPage() {
             onClick={() => router.push("/partner/venue")}
             className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Grizti i valdyma
+            Grįžti i valdyma
           </button>
         </div>
       </div>
@@ -490,9 +497,7 @@ export default function EditRoomPage() {
             </div>
 
             <div className="space-y-[12px]">
-              <p className="ui-font text-[13px] text-slate-600">
-                Darbo dienos
-              </p>
+              <p className="ui-font text-[13px] text-slate-600">Darbo dienos</p>
               <div className="flex flex-wrap gap-[10px]">
                 {WEEKDAYS.map((day) => {
                   const isSelected = selectedDays.includes(day.value);
@@ -538,7 +543,7 @@ export default function EditRoomPage() {
                 Kambario nuotraukos
               </h2>
               <p className="ui-font mt-[4px] text-[14px] text-slate-500">
-                Galite prideti ir istrinti esamas kambario galerijos nuotraukas.
+                Galite pridėti ir istrinti esamas kambario galerijos nuotraukas.
               </p>
             </div>
           </div>
@@ -578,7 +583,7 @@ export default function EditRoomPage() {
               onClick={handleUploadImages}
               className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {uploadingImages ? "Keliama..." : "Prideti nuotraukas"}
+              {uploadingImages ? "Keliama..." : "pridėti nuotraukas"}
             </button>
 
             <div className="grid gap-[12px] sm:grid-cols-2 lg:grid-cols-3">
@@ -598,7 +603,9 @@ export default function EditRoomPage() {
 
                   <div className="flex items-center justify-between gap-[10px] px-[12px] py-[10px]">
                     <span className="ui-font text-[12px] text-slate-500">
-                      {image.is_primary ? "Pagrindine" : `Pozicija ${image.position + 1}`}
+                      {image.is_primary
+                        ? "Pagrindine"
+                        : `Pozicija ${image.position + 1}`}
                     </span>
                     <button
                       type="button"
@@ -619,7 +626,7 @@ export default function EditRoomPage() {
           disabled={submitting}
           className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {submitting ? "Saugoma..." : "Issaugoti kambario pakeitimus"}
+          {submitting ? "Saugoma..." : "išsaugoti kambario pakeitimus"}
         </button>
       </form>
     </main>
