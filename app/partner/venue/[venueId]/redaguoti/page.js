@@ -614,7 +614,7 @@ export default function EditVenuePage() {
 
       if (venueDeleteError) {
         throw createStepError(
-          "Nepavyko istrinti zaidimu erdves",
+          "Nepavyko istrinti žaidimų erdvės",
           venueDeleteError,
         );
       }
@@ -640,7 +640,7 @@ export default function EditVenuePage() {
       setErrorMsg(
         getReadableError(
           error,
-          "Nepavyko istrinti zaidimu erdves. Gali buti, kad vis dar yra susietu rezervaciju arba truksta DB leidimu.",
+          "Nepavyko istrinti žaidimų erdvės. Gali buti, kad vis dar yra susietu rezervaciju arba truksta DB leidimu.",
         ),
       );
       setDeleteModalOpen(false);
@@ -658,7 +658,7 @@ export default function EditVenuePage() {
       <div className="mb-[24px] flex flex-col gap-[12px] sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-            Zaidimu erdves informacija
+            žaidimų erdvės informacija
           </p>
           <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
             Redaguoti erdve
@@ -741,7 +741,7 @@ export default function EditVenuePage() {
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                El. pastas
+                El. paštas
               </label>
               <input
                 type="email"
@@ -901,14 +901,14 @@ export default function EditVenuePage() {
             disabled={submitting || deleting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] border border-red-200 bg-red-50 px-[18px] text-[15px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {deleting ? "Trinama..." : "Istrinti zaidimu erdve"}
+            {deleting ? "Trinama..." : "Istrinti žaidimų erdvę"}
           </button>
         </form>
       </section>
 
       <ConfirmModal
         open={deleteModalOpen}
-        title="Istrinti zaidimu erdve?"
+        title="Istrinti žaidimų erdvę?"
         message="Bus istrinti visi susieti kambariai, ju nuotraukos, paslaugos ir kita su sia erdve susijusi informacija. Ar tikrai norite Tęsti?"
         confirmLabel="Taip, istrinti"
         cancelLabel="Ne, palikti"

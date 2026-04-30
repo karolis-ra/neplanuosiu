@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import ResponsiveImageFrame from "../ResponsiveImageFrame";
 
 export default function RoomGallery({ images = [], roomName }) {
@@ -29,22 +30,27 @@ export default function RoomGallery({ images = [], roomName }) {
         ratio="16 / 9"
         className="rounded-3xl"
       >
-        {/* Left arrow */}
-        <button
-          onClick={prev}
-          className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white hover:bg-black/60"
-        >
-          ‹
-        </button>
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={prev}
+              className="absolute left-4 top-1/2 flex h-[48px] w-[48px] -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-primary shadow-lg shadow-slate-900/20 backdrop-blur transition hover:scale-105 hover:bg-white focus:outline-none focus:ring-4 focus:ring-white/50"
+              aria-label="Ankstesnė nuotrauka"
+            >
+              <ChevronLeft size={28} strokeWidth={2.4} />
+            </button>
 
-        {/* Right arrow */}
-        <button
-          onClick={next}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white hover:bg-black/60"
-        >
-          ›
-        </button>
-
+            <button
+              type="button"
+              onClick={next}
+              className="absolute right-4 top-1/2 flex h-[48px] w-[48px] -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-primary shadow-lg shadow-slate-900/20 backdrop-blur transition hover:scale-105 hover:bg-white focus:outline-none focus:ring-4 focus:ring-white/50"
+              aria-label="Kita nuotrauka"
+            >
+              <ChevronRight size={28} strokeWidth={2.4} />
+            </button>
+          </>
+        )}
       </ResponsiveImageFrame>
 
       {/* THUMBNAILS */}

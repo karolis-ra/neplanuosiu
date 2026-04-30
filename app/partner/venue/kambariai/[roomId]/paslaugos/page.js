@@ -7,6 +7,7 @@ import { mapServiceImagesWithUrls } from "../../../../../lib/serviceImageUtils";
 import Loader from "../../../../../components/Loader";
 import ConfirmModal from "../../../../../components/ConfirmModal";
 import ResponsiveImageFrame from "../../../../../components/ResponsiveImageFrame";
+import SelectControl from "../../../../../components/SelectControl";
 
 const BUCKET = "public-images";
 
@@ -558,29 +559,21 @@ export default function RoomServicesManagePage() {
             />
 
             <div className="grid gap-[12px] md:grid-cols-2">
-              <select
+              <SelectControl
                 value={form.serviceType}
-                onChange={(e) => updateForm("serviceType", e.target.value)}
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-              >
-                {SERVICE_TYPES.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(nextValue) => updateForm("serviceType", nextValue)}
+                options={SERVICE_TYPES}
+                buttonClassName="h-[48px]"
+              />
 
-              <select
+              <SelectControl
                 value={form.unitsOfMeasure}
-                onChange={(e) => updateForm("unitsOfMeasure", e.target.value)}
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-              >
-                {UNIT_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(nextValue) =>
+                  updateForm("unitsOfMeasure", nextValue)
+                }
+                options={UNIT_OPTIONS}
+                buttonClassName="h-[48px]"
+              />
             </div>
 
             <div className="grid gap-[12px] md:grid-cols-2">

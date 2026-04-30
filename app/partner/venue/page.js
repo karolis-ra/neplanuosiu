@@ -13,10 +13,137 @@ function formatPrice(value) {
   return `${amount.toFixed(2)} €`;
 }
 
+function timeToMinutes(value) {
+  const [hours, minutes] = String(value || "00:00")
+    .slice(0, 5)
+    .split(":")
+    .map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+
+function rangesOverlap(startA, endA, startB, endB) {
+  return startA < endB && startB < endA;
+}
+
 function getPublicUrl(path) {
   if (!path) return "";
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data?.publicUrl || "";
+}
+
+function RoomBlockModal({
+  room,
+  form,
+  saving,
+  error,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  if (!room) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 px-[16px] py-[24px]">
+      <section className="w-full max-w-[520px] rounded-[28px] bg-white p-[22px] shadow-xl">
+        <div className="flex items-start justify-between gap-[16px]">
+          <div>
+            <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+              Užimtas laikas
+            </p>
+            <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
+              {room.name}
+            </h2>
+            <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
+              Pažymėkite laiką, kai kambarys užimtas už platformos ribų.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
+            aria-label="Uždaryti"
+          >
+            ×
+          </button>
+        </div>
+
+        {error && (
+          <p className="mt-[16px] rounded-[16px] bg-red-50 px-[14px] py-[10px] ui-font text-[14px] text-red-600">
+            {error}
+          </p>
+        )}
+
+        <form onSubmit={onSubmit} className="mt-[18px] space-y-[14px]">
+          <label className="block">
+            <span className="ui-font text-[13px] font-semibold text-slate-600">
+              Data
+            </span>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(event) => onChange("date", event.target.value)}
+              className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
+              required
+            />
+          </label>
+
+          <div className="grid gap-[12px] sm:grid-cols-2">
+            <label className="block">
+              <span className="ui-font text-[13px] font-semibold text-slate-600">
+                Nuo
+              </span>
+              <input
+                type="time"
+                value={form.startTime}
+                onChange={(event) => onChange("startTime", event.target.value)}
+                className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
+                required
+              />
+            </label>
+
+            <label className="block">
+              <span className="ui-font text-[13px] font-semibold text-slate-600">
+                Iki
+              </span>
+              <input
+                type="time"
+                value={form.endTime}
+                onChange={(event) => onChange("endTime", event.target.value)}
+                className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
+                required
+              />
+            </label>
+          </div>
+
+          <div className="rounded-[18px] bg-slate-50 px-[14px] py-[12px]">
+            <p className="ui-font text-[13px] leading-[20px] text-slate-500">
+              Šiuo laiku klientai nebegalės pasirinkti persidengiančio
+              rezervacijos laiko.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-[10px] sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              Atšaukti
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {saving ? "Saugoma..." : "Pažymėti kaip užimtą"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
 }
 
 export default function PartnerVenuePage() {
@@ -28,6 +155,119 @@ export default function PartnerVenuePage() {
   const [venue, setVenue] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [provider, setProvider] = useState(null);
+  const [blockingRoom, setBlockingRoom] = useState(null);
+  const [blockForm, setBlockForm] = useState({
+    date: "",
+    startTime: "",
+    endTime: "",
+  });
+  const [blockError, setBlockError] = useState("");
+  const [savingBlock, setSavingBlock] = useState(false);
+
+  function openBlockModal(room) {
+    setBlockingRoom(room);
+    setBlockForm({
+      date: "",
+      startTime: "",
+      endTime: "",
+    });
+    setBlockError("");
+  }
+
+  function closeBlockModal() {
+    if (savingBlock) return;
+    setBlockingRoom(null);
+    setBlockError("");
+  }
+
+  function updateBlockForm(field, value) {
+    setBlockForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setBlockError("");
+  }
+
+  async function handleCreateRoomBlock(event) {
+    event.preventDefault();
+
+    if (!blockingRoom) return;
+
+    const start = timeToMinutes(blockForm.startTime);
+    const end = timeToMinutes(blockForm.endTime);
+
+    if (!blockForm.date || !blockForm.startTime || !blockForm.endTime) {
+      setBlockError("Užpildykite datą, pradžios ir pabaigos laiką.");
+      return;
+    }
+
+    if (end <= start) {
+      setBlockError("Pabaigos laikas turi būti vėlesnis už pradžios laiką.");
+      return;
+    }
+
+    try {
+      setSavingBlock(true);
+      setBlockError("");
+
+      const [blocksRes, bookingsRes] = await Promise.all([
+        supabase
+          .from("room_unavailability")
+          .select("id, start_time, end_time")
+          .eq("room_id", blockingRoom.id)
+          .eq("date", blockForm.date),
+        supabase
+          .from("bookings")
+          .select("id, start_time, end_time, status")
+          .eq("room_id", blockingRoom.id)
+          .eq("event_date", blockForm.date),
+      ]);
+
+      if (blocksRes.error) throw blocksRes.error;
+      if (bookingsRes.error) throw bookingsRes.error;
+
+      const existingBusyIntervals = [
+        ...(blocksRes.data || []),
+        ...(bookingsRes.data || []).filter(
+          (booking) =>
+            booking.status !== "cancelled" && booking.status !== "rejected",
+        ),
+      ];
+
+      const hasConflict = existingBusyIntervals.some((item) =>
+        rangesOverlap(
+          start,
+          end,
+          timeToMinutes(item.start_time),
+          timeToMinutes(item.end_time),
+        ),
+      );
+
+      if (hasConflict) {
+        setBlockError("Pasirinktas laikas jau persidengia su kitu užimtumu.");
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from("room_unavailability")
+        .insert({
+          room_id: blockingRoom.id,
+          date: blockForm.date,
+          start_time: blockForm.startTime,
+          end_time: blockForm.endTime,
+        });
+
+      if (insertError) throw insertError;
+
+      setBlockingRoom(null);
+      setBlockError("");
+    } catch (error) {
+      console.error("room block insert error:", error);
+      setBlockError("Nepavyko pažymėti užimto laiko. Bandykite dar kartą.");
+    } finally {
+      setSavingBlock(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -165,7 +405,7 @@ export default function PartnerVenuePage() {
       } catch (e) {
         console.error("partner venue load error:", e);
         if (isMounted) {
-          setErrorMsg("Nepavyko uzkrauti zaidimu erdves informacijos.");
+          setErrorMsg("Nepavyko užkrauti žaidimų erdvės informacijos.");
         }
       } finally {
         if (isMounted) {
@@ -190,13 +430,13 @@ export default function PartnerVenuePage() {
       <div className="mb-[28px] flex flex-col gap-[16px] md:flex-row md:items-end md:justify-between">
         <div>
           <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-            Zaidimu erdves valdymas
+            Žaidimų erdvės valdymas
           </p>
           <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-            Mano zaidimu erdve
+            Mano žaidimų erdvė
           </h1>
           <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-            Cia valdysite pagrindine informacija, kambarius ir su kambariais
+            Čia valdysite pagrindinę informaciją, kambarius ir su kambariais
             susijusias paslaugas.
           </p>
         </div>
@@ -209,7 +449,7 @@ export default function PartnerVenuePage() {
             }
             className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Redaguoti erdve
+            Redaguoti erdvę
           </button>
 
           <button
@@ -220,7 +460,7 @@ export default function PartnerVenuePage() {
             }
             className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
           >
-            pridėti nauja kambari
+            Pridėti naują kambarį
           </button>
         </div>
       </div>
@@ -256,7 +496,7 @@ export default function PartnerVenuePage() {
               <div className="mt-[20px] grid gap-[12px] md:grid-cols-2 xl:grid-cols-3">
                 <div className="rounded-[20px] bg-slate-50 p-[14px]">
                   <p className="ui-font text-[12px] text-slate-500">
-                    El. pastas
+                    El. paštas
                   </p>
                   <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
                     {venue.email || "-"}
@@ -273,7 +513,9 @@ export default function PartnerVenuePage() {
                 </div>
 
                 <div className="rounded-[20px] bg-slate-50 p-[14px]">
-                  <p className="ui-font text-[12px] text-slate-500">Svetaine</p>
+                  <p className="ui-font text-[12px] text-slate-500">
+                    Svetainė
+                  </p>
                   <p className="mt-[4px] ui-font break-all text-[14px] font-semibold text-slate-800">
                     {venue.website || "-"}
                   </p>
@@ -318,7 +560,7 @@ export default function PartnerVenuePage() {
                   onClick={() => router.push("/partner/rezervacijos")}
                   className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Perziureti rezervaciju uzklausas
+                  Peržiūrėti rezervacijų užklausas
                 </button>
 
                 {!provider && (
@@ -327,7 +569,7 @@ export default function PartnerVenuePage() {
                     onClick={() => router.push("/partner/onboarding/paslaugos")}
                     className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
                   >
-                    Sukurti paslaugu profili
+                    Sukurti paslaugų profilį
                   </button>
                 )}
               </div>
@@ -346,7 +588,7 @@ export default function PartnerVenuePage() {
               ) : (
                 <div className="flex h-full min-h-[280px] items-center justify-center bg-gradient-to-br from-primary to-dark px-[24px] text-center">
                   <p className="ui-font text-[16px] font-semibold text-white">
-                    Viršelio nuotrauka dar neprideta
+                    Viršelio nuotrauka dar nepridėta
                   </p>
                 </div>
               )}
@@ -361,17 +603,17 @@ export default function PartnerVenuePage() {
             Kambariai
           </h2>
           <span className="ui-font text-[14px] text-slate-500">
-            Is viso: {rooms.length}
+            Iš viso: {rooms.length}
           </span>
         </div>
 
         {rooms.length === 0 ? (
           <div className="rounded-[28px] border border-dashed border-slate-300 bg-white px-[24px] py-[32px] text-center">
             <p className="ui-font text-[16px] font-semibold text-slate-800">
-              Kambariu dar nera
+              Kambarių dar nėra
             </p>
             <p className="mt-[8px] ui-font text-[14px] text-slate-500">
-              Sukurkite pirma arba papildoma kambari savo zaidimu erdvei.
+              Sukurkite pirmą arba papildomą kambarį savo žaidimų erdvei.
             </p>
 
             <button
@@ -382,7 +624,7 @@ export default function PartnerVenuePage() {
               }
               className="ui-font mt-[16px] inline-flex h-[48px] items-center justify-center rounded-[16px] bg-primary px-[18px] text-[14px] font-semibold text-white transition hover:bg-dark"
             >
-              pridėti kambari
+              Pridėti kambarį
             </button>
           </div>
         ) : (
@@ -406,7 +648,7 @@ export default function PartnerVenuePage() {
                     ) : (
                       <div className="flex h-full min-h-[220px] items-center justify-center bg-slate-100 px-[16px] text-center">
                         <p className="ui-font text-[13px] font-semibold text-slate-400">
-                          Nuotraukos dar neikeltos
+                          Nuotraukos dar neįkeltos
                         </p>
                       </div>
                     )}
@@ -439,13 +681,13 @@ export default function PartnerVenuePage() {
                           Talpa
                         </p>
                         <p className="mt-[4px] ui-font text-[15px] font-semibold text-slate-800">
-                          {room.capacity || "-"} vaiku
+                          {room.capacity || "-"} vaikų
                         </p>
                       </div>
 
                       <div className="rounded-[18px] bg-slate-50 p-[12px]">
                         <p className="ui-font text-[12px] text-slate-500">
-                          Trukme
+                          Trukmė
                         </p>
                         <p className="mt-[4px] ui-font text-[15px] font-semibold text-slate-800">
                           {room.duration_minutes || "-"} min.
@@ -462,7 +704,7 @@ export default function PartnerVenuePage() {
                       </div>
                     </div>
 
-                    <div className="mt-[18px] flex flex-col gap-[10px] sm:flex-row">
+                    <div className="mt-[18px] flex flex-col gap-[10px] sm:flex-row sm:flex-wrap">
                       <button
                         type="button"
                         onClick={() =>
@@ -470,7 +712,7 @@ export default function PartnerVenuePage() {
                         }
                         className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
                       >
-                        Redaguoti kambari
+                        Redaguoti kambarį
                       </button>
 
                       <button
@@ -484,6 +726,14 @@ export default function PartnerVenuePage() {
                       >
                         Kambario paslaugos
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openBlockModal(room)}
+                        className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-amber-200 bg-amber-50 px-[16px] text-[14px] font-semibold text-amber-800 transition hover:bg-amber-100"
+                      >
+                        Blokuoti laiką
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -492,6 +742,16 @@ export default function PartnerVenuePage() {
           </div>
         )}
       </section>
+
+      <RoomBlockModal
+        room={blockingRoom}
+        form={blockForm}
+        saving={savingBlock}
+        error={blockError}
+        onChange={updateBlockForm}
+        onClose={closeBlockModal}
+        onSubmit={handleCreateRoomBlock}
+      />
     </main>
   );
 }

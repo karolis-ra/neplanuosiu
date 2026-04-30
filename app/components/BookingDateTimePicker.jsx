@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import BookingActionButtons from "./buttons/BookingActionsButtons";
+import SelectControl from "./SelectControl";
 
 const MONTHS_LT = [
   "Sausis",
@@ -148,7 +149,7 @@ export default function BookingDateTimePicker({
 
         const activeBookings = (bookingsRes.data || []).filter((b) => {
           if (!b.status) return true;
-          return b.status !== "cancelled";
+          return b.status !== "cancelled" && b.status !== "rejected";
         });
 
         setBusyInfo({
@@ -510,22 +511,17 @@ export default function BookingDateTimePicker({
                 <label className="ui-font block text-[13px] font-semibold text-slate-700">
                   Pradžios laikas
                 </label>
-                <select
+                <SelectControl
                   value={selectedStartTime}
-                  onChange={(e) => {
-                    setSelectedStartTime(e.target.value);
+                  onChange={(nextValue) => {
+                    setSelectedStartTime(nextValue);
                     setWantsExtraTime("no");
                     setSelectedExtraHours(0);
                   }}
-                  className="ui-font h-[52px] w-full rounded-[18px] border border-slate-200 bg-slate-50 px-4 text-[14px] text-slate-800 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="">Pasirink laiką</option>
-                  {availableStartSlots.map((slot) => (
-                    <option key={slot.value} value={slot.value}>
-                      {slot.label}
-                    </option>
-                  ))}
-                </select>
+                  options={availableStartSlots}
+                  placeholder="Pasirink laiką"
+                  buttonClassName="h-[52px] bg-slate-50"
+                />
               </div>
 
               {selectedStartTime && (
@@ -534,19 +530,19 @@ export default function BookingDateTimePicker({
                     <label className="ui-font block text-[13px] font-semibold text-slate-700">
                       Ar norite papildomo laiko?
                     </label>
-                    <select
+                    <SelectControl
                       value={wantsExtraTime}
-                      onChange={(e) => setWantsExtraTime(e.target.value)}
-                      className="ui-font h-[52px] w-full rounded-[18px] border border-slate-200 bg-white px-4 text-[14px] text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                    >
-                      <option value="no">Ne</option>
-                      <option
-                        value="yes"
-                        disabled={extraHourOptions.length === 0}
-                      >
-                        Taip
-                      </option>
-                    </select>
+                      onChange={setWantsExtraTime}
+                      options={[
+                        { value: "no", label: "Ne" },
+                        {
+                          value: "yes",
+                          label: "Taip",
+                          disabled: extraHourOptions.length === 0,
+                        },
+                      ]}
+                      buttonClassName="h-[52px]"
+                    />
                   </div>
 
                   {wantsExtraTime === "yes" && extraHourOptions.length > 0 && (
@@ -554,19 +550,14 @@ export default function BookingDateTimePicker({
                       <label className="ui-font block text-[13px] font-semibold text-slate-700">
                         Papildomas laikas
                       </label>
-                      <select
+                      <SelectControl
                         value={selectedExtraHours}
-                        onChange={(e) =>
-                          setSelectedExtraHours(Number(e.target.value))
+                        onChange={(nextValue) =>
+                          setSelectedExtraHours(Number(nextValue))
                         }
-                        className="ui-font h-[52px] w-full rounded-[18px] border border-slate-200 bg-white px-4 text-[14px] text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                      >
-                        {extraHourOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
+                        options={extraHourOptions}
+                        buttonClassName="h-[52px]"
+                      />
                     </div>
                   )}
 

@@ -6,7 +6,11 @@ import FavoriteButton from "./FavoriteButton";
 import ResponsiveImageFrame from "./ResponsiveImageFrame";
 import { supabase } from "../lib/supabaseClient";
 
-export default function RoomCard({ room, initialIsFavorite, onFavoriteChange }) {
+export default function RoomCard({
+  room,
+  initialIsFavorite,
+  onFavoriteChange,
+}) {
   const primaryImageUrl = room.primaryImageUrl;
   const city = room.venue_city || room.city || "";
   const address = room.venue_address || "";
@@ -45,7 +49,7 @@ export default function RoomCard({ room, initialIsFavorite, onFavoriteChange }) 
     }
   };
 
-  const ctaLabel = userRole === "venue_owner" ? "Perziureti" : "Rezervuoti";
+  const ctaLabel = userRole === "venue_owner" ? "Peržiūrėti" : "Rezervuoti";
 
   return (
     <article className="relative flex flex-col overflow-hidden rounded-3xl bg-white shadow-sm">

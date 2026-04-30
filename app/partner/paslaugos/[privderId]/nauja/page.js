@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
 import Loader from "@/app/components/Loader";
+import SelectControl from "@/app/components/SelectControl";
 
 const BUCKET = "public-images";
 
@@ -408,17 +409,12 @@ export default function CreateServicePage() {
               <label className="ui-font text-[13px] text-slate-600">
                 Paslaugos tipas
               </label>
-              <select
+              <SelectControl
                 value={serviceType}
-                onChange={(e) => setServiceType(e.target.value)}
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-              >
-                {serviceTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onChange={setServiceType}
+                options={serviceTypeOptions}
+                buttonClassName="h-[48px]"
+              />
             </div>
 
             <div className="space-y-[6px]">
@@ -457,17 +453,12 @@ export default function CreateServicePage() {
               <label className="ui-font text-[13px] text-slate-600">
                 Kainos vienetas
               </label>
-              <select
+              <SelectControl
                 value={unitsOfMeasure}
-                onChange={(e) => setUnitsOfMeasure(e.target.value)}
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-              >
-                {unitOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onChange={setUnitsOfMeasure}
+                options={unitOptions}
+                buttonClassName="h-[48px]"
+              />
             </div>
           </div>
 
@@ -638,7 +629,7 @@ export default function CreateServicePage() {
               onClick={() => router.push("/partner/paslaugos")}
               className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Atsaukti
+              Atšaukti
             </button>
 
             <button

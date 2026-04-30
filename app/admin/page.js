@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import Loader from "../components/Loader";
+import SelectControl from "../components/SelectControl";
 
 const ROLE_OPTIONS = [
   { value: "client", label: "Klientas" },
-  { value: "venue_owner", label: "Zaidimu erdves partneris" },
-  { value: "service_provider", label: "Paslaugos teikejas" },
+  { value: "venue_owner", label: "Žaidimų erdvės partneris" },
+  { value: "service_provider", label: "Paslaugos teikėjas" },
   { value: "admin", label: "Administratorius" },
 ];
 
@@ -16,7 +17,7 @@ const STATUS_OPTIONS = [
   { value: "pending", label: "Laukia patvirtinimo" },
   { value: "confirmed", label: "Patvirtinta" },
   { value: "rejected", label: "Atmesta" },
-  { value: "cancelled", label: "Atsaukta" },
+  { value: "cancelled", label: "Atšaukta" },
 ];
 
 function getRoleLabel(role) {
@@ -27,7 +28,7 @@ function getStatusLabel(status) {
   return (
     STATUS_OPTIONS.find((item) => item.value === status)?.label ||
     status ||
-    "Nezinoma"
+    "Nežinoma"
   );
 }
 
@@ -57,7 +58,9 @@ function formatTimeRange(startTime, endTime) {
 }
 
 function normalizeSearchValue(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function bookingMatchesSearch(booking, searchValue) {
@@ -75,9 +78,59 @@ function bookingMatchesSearch(booking, searchValue) {
     venue.name,
   ];
 
-  return fields.some((field) =>
+  return fields.some((field) => normalizeSearchValue(field).includes(query));
+}
+
+function userMatchesSearch(user, searchValue) {
+  const query = normalizeSearchValue(searchValue);
+  if (!query) return true;
+
+  return [user?.full_name, user?.email, getRoleLabel(user?.role)].some(
+    (field) => normalizeSearchValue(field).includes(query),
+  );
+}
+
+function partnerMatchesSearch(item, searchValue) {
+  const query = normalizeSearchValue(searchValue);
+  if (!query) return true;
+
+  return [item?.name, item?.city, item?.email, item?.phone].some((field) =>
     normalizeSearchValue(field).includes(query),
   );
+}
+
+function serviceMatchesSearch(service, searchValue) {
+  const query = normalizeSearchValue(searchValue);
+  if (!query) return true;
+
+  return [
+    service?.name,
+    service?.provider?.name,
+    getServiceTypeLabel(service?.service_type),
+  ].some((field) => normalizeSearchValue(field).includes(query));
+}
+
+function getEditFieldLabel(field) {
+  switch (field) {
+    case "full_name":
+      return "Vardas ir pavardė";
+    case "name":
+      return "Pavadinimas";
+    case "email":
+      return "El. paštas";
+    case "role":
+      return "Rolė";
+    case "city":
+      return "Miestas";
+    case "phone":
+      return "Telefonas";
+    case "price_per_unit":
+      return "Kaina";
+    case "is_listed":
+      return "Rodoma klientams";
+    default:
+      return field;
+  }
 }
 
 function getServiceTypeLabel(type) {
@@ -105,7 +158,11 @@ function getBookingStartDate(booking) {
 }
 
 function canCancelBooking(booking) {
-  if (!booking || booking.status === "cancelled" || booking.status === "rejected") {
+  if (
+    !booking ||
+    booking.status === "cancelled" ||
+    booking.status === "rejected"
+  ) {
     return false;
   }
 
@@ -114,41 +171,6 @@ function canCancelBooking(booking) {
 
   const hoursUntilBooking = (startDate.getTime() - Date.now()) / 36e5;
   return hoursUntilBooking >= 48;
-}
-
-function buildUserDrafts(rows) {
-  return (rows || []).reduce((map, user) => {
-    map[user.id] = {
-      full_name: user.full_name || "",
-      email: user.email || "",
-      role: user.role || "client",
-    };
-    return map;
-  }, {});
-}
-
-function buildPartnerDrafts(rows) {
-  return (rows || []).reduce((map, item) => {
-    map[item.id] = {
-      name: item.name || "",
-      city: item.city || "",
-      email: item.email || "",
-      phone: item.phone || "",
-    };
-    return map;
-  }, {});
-}
-
-function buildServiceDrafts(rows) {
-  return (rows || []).reduce((map, item) => {
-    map[item.id] = {
-      name: item.name || "",
-      price_per_unit:
-        item.price_per_unit == null ? "" : String(item.price_per_unit),
-      is_listed: item.is_listed !== false,
-    };
-    return map;
-  }, {});
 }
 
 function getApprovalPriority(approval) {
@@ -214,8 +236,10 @@ function buildBookingDetails(booking) {
   const roomApproval =
     approvals
       .filter((approval) => approval.approval_type === "venue")
-      .reduce((current, approval) => pickBestApproval(current, approval), null) ||
-    createSyntheticRoomApproval(booking);
+      .reduce(
+        (current, approval) => pickBestApproval(current, approval),
+        null,
+      ) || createSyntheticRoomApproval(booking);
 
   const approvalsByService = approvals
     .filter((approval) => approval.approval_type === "service")
@@ -228,7 +252,8 @@ function buildBookingDetails(booking) {
   const serviceItems = (booking?.booking_services || []).map((item) => {
     const key = item.service_id || item.service?.provider_id || item.id;
     const approval =
-      approvalsByService.get(key) || createSyntheticServiceApproval(booking, item);
+      approvalsByService.get(key) ||
+      createSyntheticServiceApproval(booking, item);
 
     return {
       ...item,
@@ -416,7 +441,7 @@ function AdminReservationDetailsModal({
         <div className="mb-[18px] flex items-start justify-between gap-[16px]">
           <div>
             <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-              Rezervacijos detales
+              Rezervacijos detalės
             </p>
             <h2 className="mt-[6px] ui-font text-[26px] font-semibold text-slate-900">
               {room.name || "Kambarys"}
@@ -431,38 +456,41 @@ function AdminReservationDetailsModal({
             type="button"
             onClick={onClose}
             className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
-            aria-label="Uzdaryti"
+            aria-label="Uždaryti"
           >
-            x
+            ×
           </button>
         </div>
 
         <div className="grid gap-[10px] md:grid-cols-2 xl:grid-cols-4">
           <DetailCell
-            label="Rezervacijos Nr."
+            label="Rezervacijos numeris"
             value={booking.reservation_code}
           />
           <DetailCell label="Klientas" value={booking.guest_name} />
-          <DetailCell label="El. pastas" value={booking.guest_email} />
+          <DetailCell label="El. paštas" value={booking.guest_email} />
           <DetailCell label="Telefonas" value={booking.guest_phone} />
           <DetailCell
             label="Bendra suma"
             value={formatPrice(booking.total_amount ?? booking.total_price)}
           />
           <DetailCell label="Vaikai" value={booking.num_children ?? 0} />
-          <DetailCell label="Suauge" value={booking.num_adults ?? 0} />
+          <DetailCell label="Suaugę" value={booking.num_adults ?? 0} />
           <DetailCell label="Vieta" value={venue.name || room.city} />
           <DetailCell
             label="Adresas"
             value={
-              [venue.address, venue.city].filter(Boolean).join(", ") || room.city
+              [venue.address, venue.city].filter(Boolean).join(", ") ||
+              room.city
             }
           />
         </div>
 
         {booking.note && (
           <div className="mt-[16px] rounded-[20px] bg-slate-50 p-[14px]">
-            <p className="ui-font text-[12px] text-slate-500">Kliento pastaba</p>
+            <p className="ui-font text-[12px] text-slate-500">
+              Kliento pastaba
+            </p>
             <p className="mt-[6px] ui-font text-[14px] leading-[22px] text-slate-700">
               {booking.note}
             </p>
@@ -472,14 +500,14 @@ function AdminReservationDetailsModal({
         <div className="mt-[22px] space-y-[14px]">
           <AdminApprovalCard
             title={room.name || "Kambario rezervacija"}
-            subtitle="Zaidimu kambario rezervacija"
+            subtitle="Žaidimų kambario rezervacija"
             status={roomApproval.status}
             meta={[
               ["Data", booking.event_date],
               ["Laikas", formatTimeRange(booking.start_time, booking.end_time)],
               ["Statusas", getStatusLabel(roomApproval.status)],
             ].map(([label, value]) => ({ label, value }))}
-            actionLabel="Patvirtinti kambari"
+            actionLabel="Patvirtinti kambarį"
             processingKey={processingKey}
             itemKey={roomItemKey}
             onConfirm={() =>
@@ -506,7 +534,7 @@ function AdminReservationDetailsModal({
 
           {serviceItems.map((item) => {
             const service = item.service || {};
-            const providerName = service.provider?.name || "Paslaugos teikejas";
+            const providerName = service.provider?.name || "Paslaugos teikėjas";
             const itemKey = `service:${booking.id}:${item.service_id}`;
 
             return (
@@ -517,18 +545,17 @@ function AdminReservationDetailsModal({
                 status={item.approval.status}
                 meta={[
                   ["Tipas", getServiceTypeLabel(service.service_type)],
-                  ["Tiekejas", providerName],
+                  ["Teikėjas", providerName],
                   ["Kaina", formatPrice(item.price_per_unit)],
-                  ["Matavimo vnt.", item.units_of_measure || "unit"],
                   [
-                    "Trukme",
+                    "Trukmė",
                     service.duration_minutes
                       ? `${service.duration_minutes} min.`
                       : "-",
                   ],
                   ["Statusas", getStatusLabel(item.approval.status)],
                 ].map(([label, value]) => ({ label, value }))}
-                actionLabel="Patvirtinti paslauga"
+                actionLabel="Patvirtinti paslaugą"
                 processingKey={processingKey}
                 itemKey={itemKey}
                 onConfirm={() =>
@@ -564,6 +591,240 @@ function AdminReservationDetailsModal({
   );
 }
 
+function EditEntityModal({
+  editing,
+  currentAdminId,
+  savingKey,
+  onChange,
+  onClose,
+  onAskConfirm,
+  onBack,
+  onSave,
+}) {
+  if (!editing) return null;
+
+  const { type, item, draft, confirming } = editing;
+  const isSaving = savingKey === `${type}:${item.id}`;
+  const isCurrentAdmin = type === "user" && item.id === currentAdminId;
+
+  const titleByType = {
+    user: "Redaguoti vartotoją",
+    venue: "Redaguoti žaidimų erdvę",
+    provider: "Redaguoti paslaugos teikėją",
+    service: "Redaguoti paslaugą",
+  };
+
+  const descriptionByType = {
+    user: "Pakeitimai bus pritaikyti vartotojo profiliui.",
+    venue: "Pakeitimai bus pritaikyti žaidimų erdvės kontaktams.",
+    provider: "Pakeitimai bus pritaikyti paslaugos teikėjo kontaktams.",
+    service: "Pakeitimai bus pritaikyti paslaugos informacijai.",
+  };
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
+      <section className="w-full max-w-[620px] rounded-[28px] bg-white p-[22px] shadow-xl">
+        <div className="mb-[18px] flex items-start justify-between gap-[16px]">
+          <div>
+            <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
+              {titleByType[type] || "Redaguoti"}
+            </h2>
+            <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
+              {descriptionByType[type]}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            aria-label="Uždaryti"
+          >
+            ×
+          </button>
+        </div>
+
+        {confirming ? (
+          <div className="space-y-[16px]">
+            <div className="rounded-[20px] bg-amber-50 p-[14px]">
+              <p className="ui-font text-[14px] font-semibold text-amber-800">
+                Ar tikrai norite išsaugoti šiuos pakeitimus?
+              </p>
+              <p className="mt-[6px] ui-font text-[13px] leading-[20px] text-amber-700">
+                Patvirtinus duomenys bus įrašyti į duomenų bazę. Jei nesate
+                tikri, grįžkite atgal ir dar kartą patikrinkite laukus.
+              </p>
+            </div>
+
+            <div className="grid gap-[10px] sm:grid-cols-2">
+              {Object.entries(draft).map(([field, value]) => (
+                <DetailCell
+                  key={field}
+                  label={getEditFieldLabel(field)}
+                  value={
+                    typeof value === "boolean"
+                      ? value
+                        ? "Taip"
+                        : "Ne"
+                      : value || "-"
+                  }
+                />
+              ))}
+            </div>
+
+            <div className="flex flex-col-reverse gap-[10px] sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={onBack}
+                disabled={isSaving}
+                className="ui-font h-[44px] rounded-[14px] border border-slate-200 px-[16px] text-[14px] font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Grįžti redaguoti
+              </button>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={isSaving}
+                className="ui-font h-[44px] rounded-[14px] bg-primary px-[16px] text-[14px] font-semibold text-white disabled:bg-slate-300"
+              >
+                {isSaving ? "Saugoma..." : "Taip, išsaugoti"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form
+            className="space-y-[14px]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onAskConfirm();
+            }}
+          >
+            {(type === "user" || type === "venue" || type === "provider") && (
+              <div className="grid gap-[12px] sm:grid-cols-2">
+                <label className="ui-font text-[12px] font-semibold text-slate-500">
+                  {type === "user" ? "Vardas ir pavardė" : "Pavadinimas"}
+                  <input
+                    value={draft.full_name ?? draft.name ?? ""}
+                    onChange={(event) =>
+                      onChange(
+                        type === "user" ? "full_name" : "name",
+                        event.target.value,
+                      )
+                    }
+                    className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
+                  />
+                </label>
+
+                {type !== "user" && (
+                  <label className="ui-font text-[12px] font-semibold text-slate-500">
+                    Miestas
+                    <input
+                      value={draft.city || ""}
+                      onChange={(event) => onChange("city", event.target.value)}
+                      className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
+                    />
+                  </label>
+                )}
+
+                <label className="ui-font text-[12px] font-semibold text-slate-500">
+                  El. paštas
+                  <input
+                    type="email"
+                    value={draft.email || ""}
+                    onChange={(event) => onChange("email", event.target.value)}
+                    className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
+                  />
+                </label>
+
+                {type !== "user" && (
+                  <label className="ui-font text-[12px] font-semibold text-slate-500">
+                    Telefonas
+                    <input
+                      value={draft.phone || ""}
+                      onChange={(event) =>
+                        onChange("phone", event.target.value)
+                      }
+                      className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
+                    />
+                  </label>
+                )}
+
+                {type === "user" && (
+                  <label className="ui-font text-[12px] font-semibold text-slate-500">
+                    Rolė
+                    <SelectControl
+                      value={draft.role || "client"}
+                      disabled={isCurrentAdmin}
+                      onChange={(nextValue) => onChange("role", nextValue)}
+                      options={ROLE_OPTIONS}
+                      className="mt-[6px]"
+                      buttonClassName="min-h-[42px] px-[12px] py-[10px]"
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+
+            {type === "service" && (
+              <div className="grid gap-[12px] sm:grid-cols-2">
+                <label className="ui-font text-[12px] font-semibold text-slate-500">
+                  Paslauga
+                  <input
+                    value={draft.name || ""}
+                    onChange={(event) => onChange("name", event.target.value)}
+                    className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="ui-font text-[12px] font-semibold text-slate-500">
+                  Kaina
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={draft.price_per_unit || ""}
+                    onChange={(event) =>
+                      onChange("price_per_unit", event.target.value)
+                    }
+                    className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="ui-font flex items-center gap-[8px] text-[13px] font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(draft.is_listed)}
+                    onChange={(event) =>
+                      onChange("is_listed", event.target.checked)
+                    }
+                    className="h-[18px] w-[18px] accent-primary"
+                  />
+                  Rodoma klientams
+                </label>
+              </div>
+            )}
+
+            <div className="flex flex-col-reverse gap-[10px] sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="ui-font h-[44px] rounded-[14px] border border-slate-200 px-[16px] text-[14px] font-semibold text-slate-700"
+              >
+                Atšaukti
+              </button>
+              <button
+                type="submit"
+                className="ui-font h-[44px] rounded-[14px] bg-primary px-[16px] text-[14px] font-semibold text-white"
+              >
+                Peržiūrėti pakeitimus
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
 
@@ -580,10 +841,9 @@ export default function AdminPage() {
   const [services, setServices] = useState([]);
   const [activeBookingId, setActiveBookingId] = useState("");
   const [reservationSearch, setReservationSearch] = useState("");
-  const [userDrafts, setUserDrafts] = useState({});
-  const [venueDrafts, setVenueDrafts] = useState({});
-  const [providerDrafts, setProviderDrafts] = useState({});
-  const [serviceDrafts, setServiceDrafts] = useState({});
+  const [userSearch, setUserSearch] = useState("");
+  const [partnerSearch, setPartnerSearch] = useState("");
+  const [editingEntity, setEditingEntity] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -737,14 +997,10 @@ export default function AdminPage() {
         setVenues(venuesRes.data || []);
         setProviders(providersRes.data || []);
         setServices(servicesRes.data || []);
-        setUserDrafts(buildUserDrafts(usersRes.data || []));
-        setVenueDrafts(buildPartnerDrafts(venuesRes.data || []));
-        setProviderDrafts(buildPartnerDrafts(providersRes.data || []));
-        setServiceDrafts(buildServiceDrafts(servicesRes.data || []));
       } catch (error) {
         console.error("admin load error:", error);
         if (isMounted) {
-          setErrorMsg("Nepavyko uzkrauti administratoriaus duomenu.");
+          setErrorMsg("Nepavyko įkelti administratoriaus duomenų.");
         }
       } finally {
         if (isMounted) {
@@ -783,6 +1039,32 @@ export default function AdminPage() {
     [bookings, reservationSearch],
   );
 
+  const filteredUsers = useMemo(
+    () => users.filter((user) => userMatchesSearch(user, userSearch)),
+    [users, userSearch],
+  );
+
+  const filteredVenues = useMemo(
+    () => venues.filter((venue) => partnerMatchesSearch(venue, partnerSearch)),
+    [partnerSearch, venues],
+  );
+
+  const filteredProviders = useMemo(
+    () =>
+      providers.filter((provider) =>
+        partnerMatchesSearch(provider, partnerSearch),
+      ),
+    [partnerSearch, providers],
+  );
+
+  const filteredServices = useMemo(
+    () =>
+      services.filter((service) =>
+        serviceMatchesSearch(service, partnerSearch),
+      ),
+    [partnerSearch, services],
+  );
+
   function showSuccess(message) {
     setSuccessMsg(message);
     setErrorMsg("");
@@ -796,84 +1078,83 @@ export default function AdminPage() {
     setSuccessMsg("");
   }
 
-  function updateUserDraft(userId, field, value) {
-    setUserDrafts((current) => ({
-      ...current,
-      [userId]: {
-        ...current[userId],
-        [field]: value,
-      },
-    }));
-  }
+  function getDraftForEntity(type, item) {
+    if (type === "user") {
+      return {
+        full_name: item.full_name || "",
+        email: item.email || "",
+        role: item.role || "client",
+      };
+    }
 
-  function updateVenueDraft(venueId, field, value) {
-    setVenueDrafts((current) => ({
-      ...current,
-      [venueId]: {
-        ...current[venueId],
-        [field]: value,
-      },
-    }));
-  }
+    if (type === "service") {
+      return {
+        name: item.name || "",
+        price_per_unit:
+          item.price_per_unit == null ? "" : String(item.price_per_unit),
+        is_listed: item.is_listed !== false,
+      };
+    }
 
-  function updateProviderDraft(providerId, field, value) {
-    setProviderDrafts((current) => ({
-      ...current,
-      [providerId]: {
-        ...current[providerId],
-        [field]: value,
-      },
-    }));
-  }
-
-  function updateServiceDraft(serviceId, field, value) {
-    setServiceDrafts((current) => ({
-      ...current,
-      [serviceId]: {
-        ...current[serviceId],
-        [field]: value,
-      },
-    }));
-  }
-
-  async function handleSaveUser(userId) {
-    const draft = userDrafts[userId];
-    if (!draft) return;
-
-    setSavingKey(`user:${userId}`);
-
-    const payload = {
-      full_name: draft.full_name.trim() || null,
-      email: draft.email.trim() || null,
-      role: draft.role || "client",
+    return {
+      name: item.name || "",
+      city: item.city || "",
+      email: item.email || "",
+      phone: item.phone || "",
     };
+  }
 
-    const { error } = await supabase.from("users").update(payload).eq("id", userId);
-    setSavingKey("");
+  function openEditEntity(type, item) {
+    setEditingEntity({
+      type,
+      item,
+      draft: getDraftForEntity(type, item),
+      confirming: false,
+    });
+    setErrorMsg("");
+    setSuccessMsg("");
+  }
 
-    if (error) {
-      showError("Nepavyko issaugoti vartotojo profilio.", error);
-      return;
-    }
-
-    setUsers((current) =>
-      current.map((user) => (user.id === userId ? { ...user, ...payload } : user)),
+  function updateEditDraft(field, value) {
+    setEditingEntity((current) =>
+      current
+        ? {
+            ...current,
+            draft: {
+              ...current.draft,
+              [field]: value,
+            },
+          }
+        : current,
     );
-    if (currentAdmin?.id === userId) {
-      setCurrentAdmin((current) => ({ ...current, ...payload }));
-    }
-    showSuccess("Vartotojo profilis atnaujintas.");
+  }
+
+  function closeEditEntity() {
+    if (savingKey) return;
+    setEditingEntity(null);
+  }
+
+  function askConfirmEdit() {
+    setEditingEntity((current) =>
+      current ? { ...current, confirming: true } : current,
+    );
+  }
+
+  function backToEdit() {
+    setEditingEntity((current) =>
+      current ? { ...current, confirming: false } : current,
+    );
   }
 
   async function handleDeleteUser(userId) {
     if (userId === currentAdmin?.id) {
-      showError("Savo administratoriaus paskyros istrinti negalima.");
+      showError("Savo administratoriaus paskyros ištrinti negalima.");
       return;
     }
 
     const userToDelete = users.find((user) => user.id === userId);
     const confirmed = window.confirm(
-      `Ar tikrai istrinti paskyra: ${
+      `Ar tikrai norite ištrinti paskyrą: ${
         userToDelete?.email || userToDelete?.full_name || userId
       }?`,
     );
@@ -887,17 +1168,12 @@ export default function AdminPage() {
     setSavingKey("");
 
     if (error) {
-      showError("Nepavyko istrinti vartotojo paskyros.", error);
+      showError("Nepavyko ištrinti vartotojo paskyros.", error);
       return;
     }
 
     setUsers((current) => current.filter((user) => user.id !== userId));
-    setUserDrafts((current) => {
-      const next = { ...current };
-      delete next[userId];
-      return next;
-    });
-    showSuccess("Vartotojo paskyra istrinta.");
+    showSuccess("Vartotojo paskyra ištrinta.");
   }
 
   async function handleUpdateBookingStatus(bookingId, status) {
@@ -909,7 +1185,7 @@ export default function AdminPage() {
     setSavingKey("");
 
     if (error) {
-      showError("Nepavyko atnaujinti rezervacijos busenos.", error);
+      showError("Nepavyko atnaujinti rezervacijos būsenos.", error);
       return;
     }
 
@@ -918,7 +1194,7 @@ export default function AdminPage() {
         booking.id === bookingId ? { ...booking, status } : booking,
       ),
     );
-    showSuccess("Rezervacijos busena atnaujinta.");
+    showSuccess("Rezervacijos būsena atnaujinta.");
   }
 
   async function saveApprovalDecision(target, nowIso) {
@@ -1046,97 +1322,123 @@ export default function AdminPage() {
           };
         }),
       );
-      showSuccess("Rezervacijos sprendimas issaugotas.");
+      showSuccess("Rezervacijos sprendimas išsaugotas.");
     } catch (error) {
-      showError("Nepavyko issaugoti rezervacijos sprendimo.", error);
+      showError("Nepavyko išsaugoti rezervacijos sprendimo.", error);
     } finally {
       setSavingKey("");
     }
   }
 
-  async function handleSaveVenue(venueId) {
-    const draft = venueDrafts[venueId];
-    if (!draft) return;
+  async function handleSaveEdit() {
+    if (!editingEntity) return;
 
-    setSavingKey(`venue:${venueId}`);
-    const payload = {
-      name: draft.name.trim() || null,
-      city: draft.city.trim() || null,
-      email: draft.email.trim() || null,
-      phone: draft.phone.trim() || null,
-    };
-    const { error } = await supabase.from("venues").update(payload).eq("id", venueId);
-    setSavingKey("");
+    const { type, item, draft } = editingEntity;
+    const entityKey = `${type}:${item.id}`;
+    setSavingKey(entityKey);
 
-    if (error) {
-      showError("Nepavyko issaugoti zaidimu erdves.", error);
-      return;
+    try {
+      if (type === "user") {
+        const payload = {
+          full_name: draft.full_name.trim() || null,
+          email: draft.email.trim() || null,
+          role:
+            item.id === currentAdmin?.id ? item.role : draft.role || "client",
+        };
+
+        const { error } = await supabase
+          .from("users")
+          .update(payload)
+          .eq("id", item.id);
+
+        if (error) throw error;
+
+        setUsers((current) =>
+          current.map((user) =>
+            user.id === item.id ? { ...user, ...payload } : user,
+          ),
+        );
+        if (currentAdmin?.id === item.id) {
+          setCurrentAdmin((current) => ({ ...current, ...payload }));
+        }
+        showSuccess("Vartotojo profilis atnaujintas.");
+      }
+
+      if (type === "venue") {
+        const payload = {
+          name: draft.name.trim() || null,
+          city: draft.city.trim() || null,
+          email: draft.email.trim() || null,
+          phone: draft.phone.trim() || null,
+        };
+
+        const { error } = await supabase
+          .from("venues")
+          .update(payload)
+          .eq("id", item.id);
+
+        if (error) throw error;
+
+        setVenues((current) =>
+          current.map((venue) =>
+            venue.id === item.id ? { ...venue, ...payload } : venue,
+          ),
+        );
+        showSuccess("Žaidimų erdvė atnaujinta.");
+      }
+
+      if (type === "provider") {
+        const payload = {
+          name: draft.name.trim() || null,
+          city: draft.city.trim() || null,
+          email: draft.email.trim() || null,
+          phone: draft.phone.trim() || null,
+        };
+
+        const { error } = await supabase
+          .from("service_providers")
+          .update(payload)
+          .eq("id", item.id);
+
+        if (error) throw error;
+
+        setProviders((current) =>
+          current.map((provider) =>
+            provider.id === item.id ? { ...provider, ...payload } : provider,
+          ),
+        );
+        showSuccess("Paslaugos teikėjas atnaujintas.");
+      }
+
+      if (type === "service") {
+        const payload = {
+          name: draft.name.trim() || null,
+          price_per_unit:
+            draft.price_per_unit === "" ? null : Number(draft.price_per_unit),
+          is_listed: Boolean(draft.is_listed),
+        };
+
+        const { error } = await supabase
+          .from("services")
+          .update(payload)
+          .eq("id", item.id);
+
+        if (error) throw error;
+
+        setServices((current) =>
+          current.map((service) =>
+            service.id === item.id ? { ...service, ...payload } : service,
+          ),
+        );
+        showSuccess("Paslauga atnaujinta.");
+      }
+
+      setEditingEntity(null);
+    } catch (error) {
+      showError("Nepavyko išsaugoti pakeitimų.", error);
+    } finally {
+      setSavingKey("");
     }
-
-    setVenues((current) =>
-      current.map((venue) => (venue.id === venueId ? { ...venue, ...payload } : venue)),
-    );
-    showSuccess("Zaidimu erdve atnaujinta.");
-  }
-
-  async function handleSaveProvider(providerId) {
-    const draft = providerDrafts[providerId];
-    if (!draft) return;
-
-    setSavingKey(`provider:${providerId}`);
-    const payload = {
-      name: draft.name.trim() || null,
-      city: draft.city.trim() || null,
-      email: draft.email.trim() || null,
-      phone: draft.phone.trim() || null,
-    };
-    const { error } = await supabase
-      .from("service_providers")
-      .update(payload)
-      .eq("id", providerId);
-    setSavingKey("");
-
-    if (error) {
-      showError("Nepavyko issaugoti paslaugos teikejo.", error);
-      return;
-    }
-
-    setProviders((current) =>
-      current.map((provider) =>
-        provider.id === providerId ? { ...provider, ...payload } : provider,
-      ),
-    );
-    showSuccess("Paslaugos teikejas atnaujintas.");
-  }
-
-  async function handleSaveService(serviceId) {
-    const draft = serviceDrafts[serviceId];
-    if (!draft) return;
-
-    setSavingKey(`service:${serviceId}`);
-    const payload = {
-      name: draft.name.trim() || null,
-      price_per_unit:
-        draft.price_per_unit === "" ? null : Number(draft.price_per_unit),
-      is_listed: Boolean(draft.is_listed),
-    };
-    const { error } = await supabase
-      .from("services")
-      .update(payload)
-      .eq("id", serviceId);
-    setSavingKey("");
-
-    if (error) {
-      showError("Nepavyko issaugoti paslaugos.", error);
-      return;
-    }
-
-    setServices((current) =>
-      current.map((service) =>
-        service.id === serviceId ? { ...service, ...payload } : service,
-      ),
-    );
-    showSuccess("Paslauga atnaujinta.");
   }
 
   if (loading) {
@@ -1153,8 +1455,8 @@ export default function AdminPage() {
           Administratoriaus paskyra
         </h1>
         <p className="mt-[12px] ui-font max-w-[760px] text-[15px] leading-[24px] text-slate-600">
-          Cia valdysite vartotoju profilius, rezervacijas, zaidimu erdves ir
-          paslaugu teikejus.
+          Čia valdysite vartotojų profilius, rezervacijas, žaidimų erdves ir
+          paslaugų teikėjus.
         </p>
       </div>
 
@@ -1173,9 +1475,12 @@ export default function AdminPage() {
           ["Vartotojai", stats.users],
           ["Rezervacijos", stats.bookings],
           ["Laukia sprendimo", stats.pendingBookings],
-          ["Partneriu objektai", stats.partners],
+          ["Partnerių objektai", stats.partners],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-[20px] bg-white p-[16px] shadow-sm">
+          <div
+            key={label}
+            className="rounded-[20px] bg-white p-[16px] shadow-sm"
+          >
             <p className="ui-font text-[13px] text-slate-500">{label}</p>
             <p className="mt-[6px] ui-font text-[26px] font-semibold text-slate-900">
               {value}
@@ -1207,91 +1512,73 @@ export default function AdminPage() {
 
       {activeTab === "users" && (
         <section className="space-y-[14px]">
-          {users.map((user) => {
-            const draft = userDrafts[user.id] || {};
-            const isCurrentAdmin = user.id === currentAdmin?.id;
+          <div className="max-w-[420px]">
+            <label className="ui-font text-[12px] font-semibold text-slate-500">
+              Paieška pagal vartotoją
+              <input
+                type="search"
+                value={userSearch}
+                onChange={(event) => setUserSearch(event.target.value)}
+                placeholder="Vardas, pavardė, el. paštas arba rolė"
+                className="mt-[6px] h-[42px] w-full rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] text-slate-800 outline-none transition focus:border-primary"
+              />
+            </label>
+          </div>
 
-            return (
-              <article
-                key={user.id}
-                className="rounded-[24px] bg-white p-[18px] shadow-sm"
-              >
-                <div className="mb-[14px] flex flex-wrap items-center justify-between gap-[10px]">
-                  <div>
-                    <h2 className="ui-font text-[18px] font-semibold text-slate-900">
-                      {user.full_name || user.email || "Vartotojas"}
-                    </h2>
-                    <p className="ui-font text-[13px] text-slate-500">
-                      {getRoleLabel(user.role)}
-                      {isCurrentAdmin ? " - jusu paskyra" : ""}
-                    </p>
+          {filteredUsers.length === 0 ? (
+            <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-[28px] text-center">
+              <p className="ui-font text-[15px] text-slate-600">
+                Pagal nurodytą paiešką vartotojų nerasta.
+              </p>
+            </div>
+          ) : (
+            filteredUsers.map((user) => {
+              const isCurrentAdmin = user.id === currentAdmin?.id;
+
+              return (
+                <article
+                  key={user.id}
+                  className="rounded-[24px] bg-white p-[18px] shadow-sm"
+                >
+                  <div className="flex flex-col gap-[14px] md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h2 className="ui-font text-[18px] font-semibold text-slate-900">
+                        {user.full_name || user.email || "Vartotojas"}
+                      </h2>
+                      <p className="mt-[4px] ui-font text-[13px] text-slate-500">
+                        {user.email || "-"}
+                      </p>
+                      <p className="mt-[4px] ui-font text-[13px] font-semibold text-primary">
+                        {getRoleLabel(user.role)}
+                        {isCurrentAdmin ? " - jūsų paskyra" : ""}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => openEditEntity("user", user)}
+                        className="ui-font rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white"
+                      >
+                        Redaguoti
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user.id)}
+                        disabled={
+                          isCurrentAdmin ||
+                          savingKey === `delete-user:${user.id}`
+                        }
+                        className="ui-font rounded-[14px] border border-red-200 px-[16px] py-[10px] text-[14px] font-semibold text-red-600 disabled:border-slate-200 disabled:text-slate-400"
+                      >
+                        Ištrinti paskyrą
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                <div className="grid gap-[12px] md:grid-cols-[1fr,1fr,220px]">
-                  <label className="ui-font text-[12px] font-semibold text-slate-500">
-                    Vardas
-                    <input
-                      value={draft.full_name || ""}
-                      onChange={(event) =>
-                        updateUserDraft(user.id, "full_name", event.target.value)
-                      }
-                      className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
-                    />
-                  </label>
-                  <label className="ui-font text-[12px] font-semibold text-slate-500">
-                    El. pastas
-                    <input
-                      type="email"
-                      value={draft.email || ""}
-                      onChange={(event) =>
-                        updateUserDraft(user.id, "email", event.target.value)
-                      }
-                      className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
-                    />
-                  </label>
-                  <label className="ui-font text-[12px] font-semibold text-slate-500">
-                    Role
-                    <select
-                      value={draft.role || "client"}
-                      disabled={isCurrentAdmin}
-                      onChange={(event) =>
-                        updateUserDraft(user.id, "role", event.target.value)
-                      }
-                      className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary disabled:bg-slate-100 disabled:text-slate-500"
-                    >
-                      {ROLE_OPTIONS.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="mt-[14px] flex flex-wrap gap-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => handleSaveUser(user.id)}
-                    disabled={savingKey === `user:${user.id}`}
-                    className="ui-font rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white disabled:bg-slate-300"
-                  >
-                    {savingKey === `user:${user.id}` ? "Saugoma..." : "Issaugoti"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteUser(user.id)}
-                    disabled={
-                      isCurrentAdmin || savingKey === `delete-user:${user.id}`
-                    }
-                    className="ui-font rounded-[14px] border border-red-200 px-[16px] py-[10px] text-[14px] font-semibold text-red-600 disabled:border-slate-200 disabled:text-slate-400"
-                  >
-                    Istrinti paskyra
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+                </article>
+              );
+            })
+          )}
         </section>
       )}
 
@@ -1299,7 +1586,7 @@ export default function AdminPage() {
         <section className="space-y-[14px]">
           <div className="max-w-[420px]">
             <label className="ui-font text-[12px] font-semibold text-slate-500">
-              Paieska pagal rezervacijos Nr.
+              Paieška pagal rezervacijos numerį
               <input
                 type="search"
                 value={reservationSearch}
@@ -1314,8 +1601,8 @@ export default function AdminPage() {
             <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-[28px] text-center">
               <p className="ui-font text-[15px] text-slate-600">
                 {reservationSearch
-                  ? "Pagal nurodyta paieska rezervaciju nerasta."
-                  : "Rezervaciju dar nera."}
+                  ? "Pagal nurodytą paiešką rezervacijų nerasta."
+                  : "Rezervacijų dar nėra."}
               </p>
             </div>
           ) : (
@@ -1345,7 +1632,7 @@ export default function AdminPage() {
                       </div>
                       <p className="mt-[8px] ui-font text-[12px] font-semibold uppercase tracking-[0.08em] text-primary">
                         {booking.reservation_code ||
-                          "Rezervacijos Nr. nepaskirtas"}
+                          "Rezervacijos numeris nepriskirtas"}
                       </p>
                       <p className="mt-[8px] ui-font text-[14px] text-slate-500">
                         {booking.event_date || "-"} -{" "}
@@ -1364,7 +1651,7 @@ export default function AdminPage() {
                         onClick={() => setActiveBookingId(booking.id)}
                         className="ui-font inline-flex h-[44px] items-center justify-center rounded-[14px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
                       >
-                        Perziureti rezervacija
+                        Peržiūrėti rezervaciją
                       </button>
                       <button
                         type="button"
@@ -1375,12 +1662,11 @@ export default function AdminPage() {
                           !canCancelBooking({
                             ...booking,
                             status: summaryStatus,
-                          }) ||
-                          savingKey === `booking:${booking.id}`
+                          }) || savingKey === `booking:${booking.id}`
                         }
                         className="ui-font h-[44px] rounded-[14px] border border-red-200 px-[14px] text-[14px] font-semibold text-red-600 disabled:border-slate-200 disabled:text-slate-400"
                       >
-                        Atsaukti
+                        Atšaukti
                       </button>
                     </div>
                   </div>
@@ -1390,10 +1676,12 @@ export default function AdminPage() {
                       ["Klientas", booking.guest_name || "-"],
                       [
                         "Suma",
-                        formatPrice(booking.total_amount ?? booking.total_price),
+                        formatPrice(
+                          booking.total_amount ?? booking.total_price,
+                        ),
                       ],
                       ["Vaikai", booking.num_children ?? "-"],
-                      ["Suauge", booking.num_adults ?? "-"],
+                      ["Suaugę", booking.num_adults ?? "-"],
                     ].map(([label, value]) => (
                       <div
                         key={label}
@@ -1416,170 +1704,144 @@ export default function AdminPage() {
       )}
 
       {activeTab === "partners" && (
-        <section className="grid gap-[18px] xl:grid-cols-2">
-          <div className="space-y-[14px]">
-            <h2 className="ui-font text-[22px] font-semibold text-slate-900">
-              Zaidimu erdves
-            </h2>
-            {venues.map((venue) => {
-              const draft = venueDrafts[venue.id] || {};
-              return (
-                <article
-                  key={venue.id}
-                  className="rounded-[24px] bg-white p-[18px] shadow-sm"
-                >
-                  <div className="grid gap-[10px] md:grid-cols-2">
-                    {[
-                      ["name", "Pavadinimas"],
-                      ["city", "Miestas"],
-                      ["email", "El. pastas"],
-                      ["phone", "Telefonas"],
-                    ].map(([field, label]) => (
-                      <label
-                        key={field}
-                        className="ui-font text-[12px] font-semibold text-slate-500"
-                      >
-                        {label}
-                        <input
-                          value={draft[field] || ""}
-                          onChange={(event) =>
-                            updateVenueDraft(venue.id, field, event.target.value)
-                          }
-                          className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveVenue(venue.id)}
-                    disabled={savingKey === `venue:${venue.id}`}
-                    className="ui-font mt-[12px] rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white disabled:bg-slate-300"
-                  >
-                    Issaugoti erdve
-                  </button>
-                </article>
-              );
-            })}
+        <section className="space-y-[18px]">
+          <div className="max-w-[420px]">
+            <label className="ui-font text-[12px] font-semibold text-slate-500">
+              Paieška pagal partnerį arba paslaugą
+              <input
+                type="search"
+                value={partnerSearch}
+                onChange={(event) => setPartnerSearch(event.target.value)}
+                placeholder="Pavadinimas, miestas arba teikėjas"
+                className="mt-[6px] h-[42px] w-full rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] text-slate-800 outline-none transition focus:border-primary"
+              />
+            </label>
           </div>
 
-          <div className="space-y-[14px]">
-            <h2 className="ui-font text-[22px] font-semibold text-slate-900">
-              Paslaugu teikejai
-            </h2>
-            {providers.map((provider) => {
-              const draft = providerDrafts[provider.id] || {};
-              return (
-                <article
-                  key={provider.id}
-                  className="rounded-[24px] bg-white p-[18px] shadow-sm"
-                >
-                  <div className="grid gap-[10px] md:grid-cols-2">
-                    {[
-                      ["name", "Pavadinimas"],
-                      ["city", "Miestas"],
-                      ["email", "El. pastas"],
-                      ["phone", "Telefonas"],
-                    ].map(([field, label]) => (
-                      <label
-                        key={field}
-                        className="ui-font text-[12px] font-semibold text-slate-500"
-                      >
-                        {label}
-                        <input
-                          value={draft[field] || ""}
-                          onChange={(event) =>
-                            updateProviderDraft(
-                              provider.id,
-                              field,
-                              event.target.value,
-                            )
-                          }
-                          className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveProvider(provider.id)}
-                    disabled={savingKey === `provider:${provider.id}`}
-                    className="ui-font mt-[12px] rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white disabled:bg-slate-300"
-                  >
-                    Issaugoti teikeja
-                  </button>
-                </article>
-              );
-            })}
-
-            <h2 className="pt-[8px] ui-font text-[22px] font-semibold text-slate-900">
-              Paslaugos
-            </h2>
-            {services.map((service) => {
-              const draft = serviceDrafts[service.id] || {};
-              return (
-                <article
-                  key={service.id}
-                  className="rounded-[24px] bg-white p-[18px] shadow-sm"
-                >
-                  <p className="mb-[10px] ui-font text-[13px] text-slate-500">
-                    {service.provider?.name || "Teikejas nenurodytas"}
+          <div className="grid gap-[18px] xl:grid-cols-2">
+            <div className="space-y-[14px]">
+              <h2 className="ui-font text-[22px] font-semibold text-slate-900">
+                Žaidimų erdvės
+              </h2>
+              {filteredVenues.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-[24px] text-center">
+                  <p className="ui-font text-[14px] text-slate-600">
+                    Žaidimų erdvių pagal paiešką nerasta.
                   </p>
-                  <div className="grid gap-[10px] md:grid-cols-[1fr,160px,140px]">
-                    <label className="ui-font text-[12px] font-semibold text-slate-500">
-                      Paslauga
-                      <input
-                        value={draft.name || ""}
-                        onChange={(event) =>
-                          updateServiceDraft(service.id, "name", event.target.value)
-                        }
-                        className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
-                      />
-                    </label>
-                    <label className="ui-font text-[12px] font-semibold text-slate-500">
-                      Kaina
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={draft.price_per_unit || ""}
-                        onChange={(event) =>
-                          updateServiceDraft(
-                            service.id,
-                            "price_per_unit",
-                            event.target.value,
-                          )
-                        }
-                        className="mt-[6px] w-full rounded-[14px] border border-slate-200 px-[12px] py-[10px] text-[14px] text-slate-800 outline-none focus:border-primary"
-                      />
-                    </label>
-                    <label className="ui-font flex items-end gap-[8px] text-[12px] font-semibold text-slate-500">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(draft.is_listed)}
-                        onChange={(event) =>
-                          updateServiceDraft(
-                            service.id,
-                            "is_listed",
-                            event.target.checked,
-                          )
-                        }
-                        className="mb-[13px] h-[18px] w-[18px] accent-primary"
-                      />
-                      <span className="pb-[10px]">Rodoma</span>
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveService(service.id)}
-                    disabled={savingKey === `service:${service.id}`}
-                    className="ui-font mt-[12px] rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white disabled:bg-slate-300"
+                </div>
+              ) : (
+                filteredVenues.map((venue) => (
+                  <article
+                    key={venue.id}
+                    className="rounded-[24px] bg-white p-[18px] shadow-sm"
                   >
-                    Issaugoti paslauga
-                  </button>
-                </article>
-              );
-            })}
+                    <div className="flex flex-col gap-[12px] md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="ui-font text-[18px] font-semibold text-slate-900">
+                          {venue.name || "Žaidimų erdvė"}
+                        </h3>
+                        <p className="mt-[4px] ui-font text-[13px] text-slate-500">
+                          {venue.city || "-"}
+                        </p>
+                        <p className="mt-[4px] ui-font text-[13px] text-slate-500">
+                          {venue.email || "-"}{" "}
+                          {venue.phone ? `- ${venue.phone}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openEditEntity("venue", venue)}
+                        className="ui-font rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white"
+                      >
+                        Redaguoti
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            <div className="space-y-[14px]">
+              <h2 className="ui-font text-[22px] font-semibold text-slate-900">
+                Paslaugų teikėjai
+              </h2>
+              {filteredProviders.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-[24px] text-center">
+                  <p className="ui-font text-[14px] text-slate-600">
+                    Paslaugų teikėjų pagal paiešką nerasta.
+                  </p>
+                </div>
+              ) : (
+                filteredProviders.map((provider) => (
+                  <article
+                    key={provider.id}
+                    className="rounded-[24px] bg-white p-[18px] shadow-sm"
+                  >
+                    <div className="flex flex-col gap-[12px] md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="ui-font text-[18px] font-semibold text-slate-900">
+                          {provider.name || "Paslaugos teikėjas"}
+                        </h3>
+                        <p className="mt-[4px] ui-font text-[13px] text-slate-500">
+                          {provider.city || "-"}
+                        </p>
+                        <p className="mt-[4px] ui-font text-[13px] text-slate-500">
+                          {provider.email || "-"}{" "}
+                          {provider.phone ? `- ${provider.phone}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openEditEntity("provider", provider)}
+                        className="ui-font rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white"
+                      >
+                        Redaguoti
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+
+              <h2 className="pt-[8px] ui-font text-[22px] font-semibold text-slate-900">
+                Paslaugos
+              </h2>
+              {filteredServices.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-[24px] text-center">
+                  <p className="ui-font text-[14px] text-slate-600">
+                    Paslaugų pagal paiešką nerasta.
+                  </p>
+                </div>
+              ) : (
+                filteredServices.map((service) => (
+                  <article
+                    key={service.id}
+                    className="rounded-[24px] bg-white p-[18px] shadow-sm"
+                  >
+                    <div className="flex flex-col gap-[12px] md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="ui-font text-[18px] font-semibold text-slate-900">
+                          {service.name || "Paslauga"}
+                        </h3>
+                        <p className="mt-[4px] ui-font text-[13px] text-slate-500">
+                          {service.provider?.name || "Teikėjas nenurodytas"}
+                        </p>
+                        <p className="mt-[4px] ui-font text-[13px] text-slate-500">
+                          {formatPrice(service.price_per_unit)} -{" "}
+                          {service.is_listed === false ? "Paslepta" : "Rodoma"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openEditEntity("service", service)}
+                        className="ui-font rounded-[14px] bg-primary px-[16px] py-[10px] text-[14px] font-semibold text-white"
+                      >
+                        Redaguoti
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -1589,6 +1851,16 @@ export default function AdminPage() {
         processingKey={savingKey}
         onClose={() => setActiveBookingId("")}
         onDecision={handleAdminDecision}
+      />
+      <EditEntityModal
+        editing={editingEntity}
+        currentAdminId={currentAdmin?.id}
+        savingKey={savingKey}
+        onChange={updateEditDraft}
+        onClose={closeEditEntity}
+        onAskConfirm={askConfirmEdit}
+        onBack={backToEdit}
+        onSave={handleSaveEdit}
       />
     </main>
   );

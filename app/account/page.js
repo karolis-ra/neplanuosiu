@@ -143,10 +143,14 @@ function getSeenReservationStatuses(userId) {
 }
 
 function saveSeenReservationStatusesForBooking(userId, booking) {
+  saveSeenReservationStatuses(userId, [booking]);
+}
+
+function saveSeenReservationStatuses(userId, bookings) {
   if (typeof window === "undefined" || !userId) return;
 
   const currentSeen = getSeenReservationStatuses(userId);
-  const nextSeen = getReservationStatusSignature([booking]).reduce(
+  const nextSeen = getReservationStatusSignature(bookings).reduce(
     (map, item) => ({
       ...map,
       [item.key]: item.status,
@@ -163,6 +167,20 @@ function saveSeenReservationStatusesForBooking(userId, booking) {
     new CustomEvent("reservation-statuses-seen", {
       detail: { userId },
     }),
+  );
+}
+
+function getUnseenReservationBookingIds(userId, bookings) {
+  const seenStatuses = getSeenReservationStatuses(userId);
+
+  return new Set(
+    (bookings || [])
+      .filter((booking) =>
+        getReservationStatusSignature([booking]).some(
+          (item) => seenStatuses[item.key] !== item.status,
+        ),
+      )
+      .map((booking) => booking.id),
   );
 }
 
@@ -191,7 +209,9 @@ function formatPrice(value) {
 }
 
 function normalizeSearchValue(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function bookingMatchesSearch(booking, searchValue) {
@@ -209,9 +229,7 @@ function bookingMatchesSearch(booking, searchValue) {
     venue.name,
   ];
 
-  return fields.some((field) =>
-    normalizeSearchValue(field).includes(query),
-  );
+  return fields.some((field) => normalizeSearchValue(field).includes(query));
 }
 
 function DetailCell({ label, value }) {
@@ -298,7 +316,7 @@ function ClientReservationDetailsModal({ booking, onClose }) {
         <div className="mb-[18px] flex items-start justify-between gap-[16px]">
           <div>
             <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-              Rezervacijos detales
+              Rezervacijos detalės
             </p>
             <h2 className="mt-[6px] ui-font text-[26px] font-semibold text-slate-900">
               {room.name || "Kambarys"}
@@ -313,15 +331,15 @@ function ClientReservationDetailsModal({ booking, onClose }) {
             type="button"
             onClick={onClose}
             className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
-            aria-label="Uzdaryti"
+            aria-label="Uždaryti"
           >
-            x
+            ×
           </button>
         </div>
 
         <div className="grid gap-[10px] md:grid-cols-2 xl:grid-cols-4">
           <DetailCell
-            label="Rezervacijos Nr."
+            label="Rezervacijos nr."
             value={booking.reservation_code}
           />
           <DetailCell label="Data" value={booking.event_date} />
@@ -330,7 +348,7 @@ function ClientReservationDetailsModal({ booking, onClose }) {
             value={formatTimeRange(booking.start_time, booking.end_time)}
           />
           <DetailCell label="Vaikai" value={booking.num_children ?? 0} />
-          <DetailCell label="Suauge" value={booking.num_adults ?? 0} />
+          <DetailCell label="Suaugę" value={booking.num_adults ?? 0} />
           <DetailCell label="Vieta" value={venue.name || room.city} />
           <DetailCell
             label="Adresas"
@@ -364,7 +382,7 @@ function ClientReservationDetailsModal({ booking, onClose }) {
               </span>
             </div>
             <p className="mt-[8px] ui-font text-[14px] text-slate-500">
-              Zaidimu kambario rezervacija
+              Žaidimų kambario rezervacija
             </p>
           </article>
 
@@ -372,7 +390,7 @@ function ClientReservationDetailsModal({ booking, onClose }) {
             const service = item.service || {};
             const providerName =
               service.provider?.name ||
-              (service.room_id ? venue.name || "Si vieta" : "Partneris");
+              (service.room_id ? venue.name || "Ši vieta" : "Partneris");
 
             return (
               <article
@@ -394,15 +412,11 @@ function ClientReservationDetailsModal({ booking, onClose }) {
                 <p className="mt-[8px] ui-font text-[14px] text-slate-500">
                   {getServiceTypeLabel(service.service_type)} - {providerName}
                 </p>
-                <div className="mt-[12px] grid gap-[10px] md:grid-cols-3">
-                  <DetailCell label="Tiekejas" value={providerName} />
+                <div className="mt-[12px] grid gap-[10px] md:grid-cols-2">
+                  <DetailCell label="Teikėjas" value={providerName} />
                   <DetailCell
                     label="Kaina"
                     value={formatPrice(item.price_per_unit)}
-                  />
-                  <DetailCell
-                    label="Matavimo vnt."
-                    value={item.units_of_measure || "unit"}
                   />
                 </div>
               </article>
@@ -421,6 +435,8 @@ export default function AccountPage() {
   const [reservationTab, setReservationTab] = useState("active");
   const [reservationSearch, setReservationSearch] = useState("");
   const [activeBookingId, setActiveBookingId] = useState("");
+  const [unseenReservationBookingIds, setUnseenReservationBookingIds] =
+    useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -591,7 +607,14 @@ export default function AccountPage() {
         if (bookingsError) {
           console.error("bookings error:", bookingsError.message);
         } else {
-          setBookings(bookingsData || []);
+          const nextBookings = bookingsData || [];
+          const upcomingBookings = nextBookings.filter(isUpcomingBooking);
+
+          setUnseenReservationBookingIds(
+            getUnseenReservationBookingIds(user.id, upcomingBookings),
+          );
+          saveSeenReservationStatuses(user.id, upcomingBookings);
+          setBookings(nextBookings);
         }
       } finally {
         if (isMounted) {
@@ -645,19 +668,19 @@ export default function AccountPage() {
       key: "active",
       label: "Aktyvios",
       count: groupedBookings.active.length,
-      emptyText: "Siuo metu neturite aktyviu rezervaciju.",
+      emptyText: "Šiuo metu neturite aktyvių rezervacijų.",
     },
     {
       key: "inactive",
       label: "Atmestos",
       count: groupedBookings.inactive.length,
-      emptyText: "Siuo metu neturite atmestu ar atsauktu rezervaciju.",
+      emptyText: "Šiuo metu neturite atmestų ar atšauktų rezervacijų.",
     },
     {
       key: "history",
       label: "Istorija",
       count: groupedBookings.history.length,
-      emptyText: "Rezervaciju istorija tuscia.",
+      emptyText: "Rezervacijų istorija tuščia.",
     },
   ];
 
@@ -672,6 +695,12 @@ export default function AccountPage() {
 
   function handleOpenBookingDetails(booking) {
     setActiveBookingId(booking.id);
+    setUnseenReservationBookingIds((current) => {
+      if (!current.has(booking.id)) return current;
+      const next = new Set(current);
+      next.delete(booking.id);
+      return next;
+    });
 
     if (currentUserId && isUpcomingBooking(booking)) {
       saveSeenReservationStatusesForBooking(currentUserId, booking);
@@ -743,7 +772,7 @@ export default function AccountPage() {
               Neturite pamėgtų kambarių
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Naršykite kambarius ir spauskite ant širdelės, kad juos
+              Naršykite kambarius ir spauskite širdelę, kad juos
               išsaugotumėte.
             </p>
 
@@ -794,7 +823,7 @@ export default function AccountPage() {
 
         <div className="max-w-[420px]">
           <label className="ui-font text-[12px] font-semibold text-slate-500">
-            Paieska pagal rezervacijos Nr.
+            Paieška pagal rezervacijos nr.
             <input
               type="search"
               value={reservationSearch}
@@ -809,7 +838,7 @@ export default function AccountPage() {
           <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
             <p className="text-sm text-slate-600 ui-font">
               {reservationSearch
-                ? "Pagal nurodyta paieska rezervaciju nerasta."
+                ? "Pagal nurodytą paiešką rezervacijų nerasta."
                 : activeReservationTab.emptyText}
             </p>
           </div>
@@ -826,11 +855,16 @@ export default function AccountPage() {
               const endTime = b.end_time?.slice(0, 5) || "";
               const room = b.room || {};
               const venue = room.venue || {};
+              const hasUnseenUpdate = unseenReservationBookingIds.has(b.id);
 
               return (
                 <div
                   key={b.id}
-                  className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm md:flex-row md:items-center md:justify-between"
+                  className={`flex flex-col gap-2 rounded-2xl border px-4 py-3 text-sm shadow-sm md:flex-row md:items-center md:justify-between ${
+                    hasUnseenUpdate
+                      ? "border-amber-300 bg-amber-50/60"
+                      : "border-slate-200 bg-white"
+                  }`}
                 >
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -844,16 +878,26 @@ export default function AccountPage() {
                       >
                         {getBookingStatusLabel(summaryStatus)}
                       </span>
+                      {hasUnseenUpdate && (
+                        <span className="ui-font inline-flex items-center rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-semibold text-white">
+                          Naujas įrašas
+                        </span>
+                      )}
                     </div>
 
                     <p className="ui-font text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">
-                      {b.reservation_code || "Rezervacijos Nr. nepaskirtas"}
+                      {b.reservation_code || "Rezervacijos nr. nepaskirtas"}
                     </p>
 
-                    <p className="ui-font text-xs text-slate-600">
-                      {eventDate} {startTime}
-                      {endTime && `–${endTime}`}
-                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="ui-font inline-flex items-center rounded-[10px] bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-800">
+                        Data: {eventDate || "-"}
+                      </span>
+                      <span className="ui-font inline-flex items-center rounded-[10px] bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-800">
+                        Laikas: {startTime || "-"}
+                        {endTime && `–${endTime}`}
+                      </span>
+                    </div>
 
                     <p className="ui-font text-xs text-slate-500">
                       {venue.name && <span>{venue.name}</span>}
@@ -880,12 +924,17 @@ export default function AccountPage() {
                   </div>
 
                   <div className="mt-2 flex items-center gap-2 md:mt-0 md:flex-col md:items-end">
+                    {hasUnseenUpdate && (
+                      <p className="ui-font max-w-[220px] text-left text-[11px] font-medium text-amber-700 md:text-right">
+                        Šioje rezervacijoje yra naujas būsenos pasikeitimas.
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleOpenBookingDetails(b)}
                       className="ui-font inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-dark"
                     >
-                      Perziureti rezervacija
+                      Peržiūrėti rezervaciją
                     </button>
 
                     {summaryStatus !== "cancelled" &&

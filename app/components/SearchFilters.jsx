@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import SelectControl from "./SelectControl";
 
 const CITIES = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys"];
 
@@ -40,18 +41,19 @@ export default function SearchFilters({
         <label className="ui-font mb-1 block text-xs font-semibold text-slate-700">
           Miestas
         </label>
-        <select
+        <SelectControl
           value={miestas}
-          onChange={(e) => setMiestas(e.target.value)}
-          className="ui-font w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
-        >
-          <option value="">Pasirink miestą</option>
-          {CITIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          onChange={setMiestas}
+          options={[
+            { value: "", label: "Visi miestai" },
+            ...CITIES.map((city) => ({
+              value: city,
+              label: city,
+            })),
+          ]}
+          placeholder="Pasirink miestą"
+          buttonClassName="min-h-[40px] rounded-xl px-3 py-2 text-sm"
+        />
       </div>
 
       {/* Data */}

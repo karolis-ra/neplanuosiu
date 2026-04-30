@@ -7,6 +7,7 @@ import { mapServiceImagesWithUrls } from "../../lib/serviceImageUtils";
 import ResponsiveImageFrame from "../../components/ResponsiveImageFrame";
 import Loader from "../../components/Loader";
 import ConfirmModal from "../../components/ConfirmModal";
+import SelectControl from "../../components/SelectControl";
 
 const BUCKET = "public-images";
 
@@ -1188,33 +1189,23 @@ export default function PartnerServicesPage() {
               />
 
               <div className="grid gap-[12px] md:grid-cols-2">
-                <select
+                <SelectControl
                   value={editForm.serviceType}
-                  onChange={(e) =>
-                    updateEditForm("serviceType", e.target.value)
+                  onChange={(nextValue) =>
+                    updateEditForm("serviceType", nextValue)
                   }
-                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-                >
-                  {SERVICE_TYPES.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                  options={SERVICE_TYPES}
+                  buttonClassName="h-[48px]"
+                />
 
-                <select
+                <SelectControl
                   value={editForm.unitsOfMeasure}
-                  onChange={(e) =>
-                    updateEditForm("unitsOfMeasure", e.target.value)
+                  onChange={(nextValue) =>
+                    updateEditForm("unitsOfMeasure", nextValue)
                   }
-                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-                >
-                  {UNIT_OPTIONS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                  options={UNIT_OPTIONS}
+                  buttonClassName="h-[48px]"
+                />
               </div>
 
               <div className="grid gap-[12px] md:grid-cols-2">

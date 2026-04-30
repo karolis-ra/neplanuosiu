@@ -4,6 +4,7 @@ import { buildRoomsWithImages } from "../lib/roomImageUtils";
 import SearchFilters from "../components/SearchFilters";
 import SearchRoomsGrid from "../components/SearchRoomsGrid";
 import SearchMapSection from "../components/SearchMapSection";
+import { isRoomAvailable } from "../lib/availability";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +33,13 @@ export default async function SearchPage({
       capacity,
       city,
       is_listed,
+      duration_minutes,
+      buffer_minutes,
       venues (
         id,
         name,
+        address,
+        city,
         latitude,
         longitude
       )
@@ -54,6 +59,55 @@ export default async function SearchPage({
 
     if (zmones) {
       rooms = rooms.filter((room) => !room.capacity || room.capacity >= zmones);
+    }
+
+    if (data && laikas && rooms.length > 0) {
+      const roomIds = rooms.map((room) => room.id);
+      const eventDate = new Date(`${data}T00:00:00`);
+
+      if (!Number.isNaN(eventDate.getTime())) {
+        const [availabilityRes, unavailabilityRes, bookingsRes] =
+          await Promise.all([
+            supabase
+              .from("availability")
+              .select("room_id, weekday, start_time, end_time")
+              .in("room_id", roomIds),
+            supabase
+              .from("room_unavailability")
+              .select("room_id, date, start_time, end_time")
+              .in("room_id", roomIds)
+              .eq("date", data),
+            supabase
+              .from("bookings")
+              .select("room_id, event_date, start_time, end_time, status")
+              .in("room_id", roomIds)
+              .eq("event_date", data),
+          ]);
+
+        if (availabilityRes.error) {
+          error = availabilityRes.error;
+        } else if (unavailabilityRes.error) {
+          error = unavailabilityRes.error;
+        } else if (bookingsRes.error) {
+          error = bookingsRes.error;
+        } else {
+          const activeBookings = (bookingsRes.data || []).filter(
+            (booking) =>
+              booking.status !== "cancelled" && booking.status !== "rejected",
+          );
+
+          rooms = rooms.filter((room) =>
+            isRoomAvailable({
+              room,
+              availability: availabilityRes.data || [],
+              unavailability: unavailabilityRes.data || [],
+              bookings: activeBookings,
+              eventDate,
+              startTimeStr: laikas,
+            }),
+          );
+        }
+      }
     }
   }
 

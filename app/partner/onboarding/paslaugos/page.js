@@ -286,7 +286,7 @@ export default function ServiceProviderOnboardingPage() {
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                El. pastas
+                El. paštas
               </label>
               <input
                 type="email"

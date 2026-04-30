@@ -10,22 +10,22 @@ const accountTypes = [
     id: "client",
     title: "Klientas",
     description:
-      "Ieskokite zaidimu kambariu, rinkites papildomas paslaugas ir teikite rezervacijos uzklausas.",
+      "Ieškokite žaidimų kambarių, rinkitės papildomas paslaugas ir teikite rezervacijos užklausas.",
     buttonLabel: "Tęsti kaip klientui",
   },
   {
     id: "venue_owner",
-    title: "Zaidimu erdves valdytojas",
+    title: "Žaidimų erdvės valdytojas",
     description:
-      "Kurti savo zaidimu erdve, valdyti kambarius, perziureti rezervaciju uzklausas ir siulyti papildomas paslaugas.",
-    buttonLabel: "Tęsti kaip erdves valdytojui",
+      "Kurkite savo žaidimų erdvę, valdykite kambarius, peržiūrėkite rezervacijų užklausas ir siūlykite papildomas paslaugas.",
+    buttonLabel: "Tęsti kaip erdvės valdytojui",
   },
   {
     id: "service_provider",
-    title: "Paslaugu teikejas",
+    title: "Paslaugų teikėjas",
     description:
-      "Kurti savo paslaugas, valdyti darbo laika ir tvirtinti su paslaugomis susijusias uzklausas.",
-    buttonLabel: "Tęsti kaip paslaugu teikejui",
+      "Kurkite savo paslaugas, valdykite darbo laiką ir tvirtinkite su paslaugomis susijusias užklausas.",
+    buttonLabel: "Tęsti kaip paslaugų teikėjui",
   },
 ];
 
@@ -147,7 +147,7 @@ export default function AccountTypePage() {
     } catch (e) {
       console.error("account type save error:", e);
       setError(
-        e?.message || "Nepavyko išsaugoti paskyros tipo. Bandykite dar karta.",
+        e?.message || "Nepavyko išsaugoti paskyros tipo. Bandykite dar kartą.",
       );
       setSavingType("");
     }
@@ -167,7 +167,7 @@ export default function AccountTypePage() {
           Pasirinkite, kaip norite naudotis platforma
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Si pasirinkima veliau galesime plesti ir pritaikyti pagal jusu role.
+          Šį pasirinkimą vėliau galėsime plėsti ir pritaikyti pagal jūsų rolę.
         </p>
       </div>
 

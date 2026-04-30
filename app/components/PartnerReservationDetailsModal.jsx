@@ -9,9 +9,9 @@ function getStatusLabel(status) {
     case "rejected":
       return "Atmesta";
     case "cancelled":
-      return "Atsaukta";
+      return "Atšaukta";
     default:
-      return status || "Nezinoma";
+      return status || "Nežinoma";
   }
 }
 
@@ -128,7 +128,7 @@ function ItemCard({
           ) : (
             <div className="rounded-[18px] bg-slate-50 px-[14px] py-[12px]">
               <p className="ui-font text-[13px] leading-[20px] text-slate-500">
-                Si dalis rodoma perziurai. Tvirtinti gali tik atsakingas
+                Ši dalis rodoma peržiūrai. Tvirtinti gali tik atsakingas
                 partneris.
               </p>
             </div>
@@ -162,13 +162,14 @@ export default function PartnerReservationDetailsModal({
         <div className="mb-[18px] flex items-start justify-between gap-[16px]">
           <div>
             <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-              Rezervacijos detales
+              Rezervacijos detalės
             </p>
             <h2 className="mt-[6px] ui-font text-[26px] font-semibold text-slate-900">
               {room.name || "Kambarys"}
             </h2>
             <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
-              {booking.event_date || "-"} {String(booking.start_time || "").slice(0, 5)}
+              {booking.event_date || "-"}{" "}
+              {String(booking.start_time || "").slice(0, 5)}
               {booking.end_time
                 ? ` - ${String(booking.end_time).slice(0, 5)}`
                 : ""}
@@ -179,38 +180,41 @@ export default function PartnerReservationDetailsModal({
             type="button"
             onClick={onClose}
             className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
-            aria-label="Uzdaryti"
+            aria-label="Uždaryti"
           >
-            x
+            ×
           </button>
         </div>
 
         <div className="grid gap-[10px] md:grid-cols-2 xl:grid-cols-4">
           <DetailCell
-            label="Rezervacijos Nr."
+            label="Rezervacijos nr."
             value={booking.reservation_code}
           />
           <DetailCell label="Klientas" value={booking.guest_name} />
-          <DetailCell label="El. pastas" value={booking.guest_email} />
+          <DetailCell label="El. paštas" value={booking.guest_email} />
           <DetailCell label="Telefonas" value={booking.guest_phone} />
           <DetailCell
             label="Bendra suma"
             value={formatPrice(booking.total_amount ?? booking.total_price)}
           />
           <DetailCell label="Vaikai" value={booking.num_children ?? 0} />
-          <DetailCell label="Suauge" value={booking.num_adults ?? 0} />
+          <DetailCell label="Suaugę" value={booking.num_adults ?? 0} />
           <DetailCell label="Vieta" value={venue.name || room.city} />
           <DetailCell
             label="Adresas"
             value={
-              [venue.address, venue.city].filter(Boolean).join(", ") || room.city
+              [venue.address, venue.city].filter(Boolean).join(", ") ||
+              room.city
             }
           />
         </div>
 
         {booking.note && (
           <div className="mt-[16px] rounded-[20px] bg-slate-50 p-[14px]">
-            <p className="ui-font text-[12px] text-slate-500">Kliento pastaba</p>
+            <p className="ui-font text-[12px] text-slate-500">
+              Kliento pastaba
+            </p>
             <p className="mt-[6px] ui-font text-[14px] leading-[22px] text-slate-700">
               {booking.note}
             </p>
@@ -220,7 +224,7 @@ export default function PartnerReservationDetailsModal({
         <div className="mt-[22px] space-y-[14px]">
           <ItemCard
             title={room.name || "Kambario rezervacija"}
-            subtitle="Zaidimu kambario rezervacija"
+            subtitle="Žaidimų kambario rezervacija"
             status={order.roomApproval.status}
             meta={[
               {
@@ -241,7 +245,7 @@ export default function PartnerReservationDetailsModal({
               },
             ]}
             canManage={roomCanManage}
-            actionLabel="Patvirtinti kambari"
+            actionLabel="Patvirtinti kambarį"
             processingKey={processingKey}
             itemKey={roomItemKey}
             onConfirm={() =>
@@ -270,7 +274,7 @@ export default function PartnerReservationDetailsModal({
             const service = item.service || {};
             const providerName =
               service.provider?.name ||
-              (service.room_id ? "Si vieta" : "Partneris");
+              (service.room_id ? "Ši vieta" : "Partneris");
             const serviceCanManage = Boolean(
               providerId && service.provider_id === providerId,
             );
@@ -288,7 +292,7 @@ export default function PartnerReservationDetailsModal({
                     value: getServiceTypeLabel(service.service_type),
                   },
                   {
-                    label: "Tiekejas",
+                    label: "Teikėjas",
                     value: providerName,
                   },
                   {
@@ -296,11 +300,7 @@ export default function PartnerReservationDetailsModal({
                     value: formatPrice(item.price_per_unit),
                   },
                   {
-                    label: "Matavimo vnt.",
-                    value: item.units_of_measure || "unit",
-                  },
-                  {
-                    label: "Trukme",
+                    label: "Trukmė",
                     value: service.duration_minutes
                       ? `${service.duration_minutes} min.`
                       : "-",
@@ -311,7 +311,7 @@ export default function PartnerReservationDetailsModal({
                   },
                 ]}
                 canManage={serviceCanManage}
-                actionLabel="Patvirtinti paslauga"
+                actionLabel="Patvirtinti paslaugą"
                 processingKey={processingKey}
                 itemKey={itemKey}
                 onConfirm={() =>

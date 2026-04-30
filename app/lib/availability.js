@@ -30,7 +30,12 @@ export function isRoomAvailable({
   const roomUnavailability = unavailability.filter(
     (u) => u.room_id === room.id
   );
-  const roomBookings = bookings.filter((b) => b.room_id === room.id);
+  const roomBookings = bookings.filter(
+    (b) =>
+      b.room_id === room.id &&
+      b.status !== "cancelled" &&
+      b.status !== "rejected",
+  );
 
   // 1) turi tilpti į kažkurį availability langą
   const inAvailability = roomAvailability.some((a) => {

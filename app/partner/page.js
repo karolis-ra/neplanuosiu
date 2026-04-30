@@ -385,11 +385,11 @@ export default function PartnerPage() {
         <div className="mt-[8px] flex flex-col gap-[6px] sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="ui-font text-[24px] font-semibold text-slate-900">
-              Einamojo menesio pajamos
+              Einamojo mėnesio pajamos
             </h2>
             <p className="mt-[4px] ui-font text-[14px] text-slate-500">
-              Skaiciuojama is patvirtintu kambariu rezervaciju ir patvirtintu
-              paslaugu uzsakymu.
+              Skaičiuojama iš patvirtintų kambarių rezervacijų ir patvirtintų
+              paslaugų užsakymų.
             </p>
           </div>
           <p className="ui-font text-[30px] font-semibold text-slate-900">

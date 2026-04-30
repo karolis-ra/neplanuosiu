@@ -5,7 +5,7 @@ export default function ConfirmModal({
   title,
   message,
   confirmLabel = "Patvirtinti",
-  cancelLabel = "Atsaukti",
+  cancelLabel = "Atšaukti",
   loading = false,
   onConfirm,
   onCancel,

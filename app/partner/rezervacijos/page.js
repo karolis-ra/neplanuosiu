@@ -48,7 +48,9 @@ function formatTimeRange(startTime, endTime) {
 }
 
 function normalizeSearchValue(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function orderMatchesSearch(order, searchValue) {
@@ -67,9 +69,7 @@ function orderMatchesSearch(order, searchValue) {
     venue.name,
   ];
 
-  return fields.some((field) =>
-    normalizeSearchValue(field).includes(query),
-  );
+  return fields.some((field) => normalizeSearchValue(field).includes(query));
 }
 
 function createSyntheticRoomApproval(booking) {
@@ -661,7 +661,9 @@ export default function PartnerReservationsPage() {
         if (!bookingIds.length) {
           setOrders([]);
           if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("partner-reservations-changed"));
+            window.dispatchEvent(
+              new CustomEvent("partner-reservations-changed"),
+            );
           }
           return;
         }
@@ -824,12 +826,12 @@ export default function PartnerReservationsPage() {
         if (approvalsRes.error) throw approvalsRes.error;
 
         const nextOrders = buildOrders({
-            bookings: bookingsRes.data || [],
-            bookingServices: bookingServicesRes.data || [],
-            approvals: approvalsRes.data || [],
-            venueId: venueRow?.id || null,
-            providerId: providerRow?.id || null,
-          });
+          bookings: bookingsRes.data || [],
+          bookingServices: bookingServicesRes.data || [],
+          approvals: approvalsRes.data || [],
+          venueId: venueRow?.id || null,
+          providerId: providerRow?.id || null,
+        });
 
         setOrders(nextOrders);
         markPendingPartnerReservationsSeen(user.id, nextOrders);
@@ -1205,7 +1207,6 @@ export default function PartnerReservationsPage() {
                               </p>
                             </div>
                           </div>
-
                         </div>
 
                         <div className="min-w-[220px]">
@@ -1223,7 +1224,7 @@ export default function PartnerReservationsPage() {
                             onClick={() => setActiveOrderId(order.id)}
                             className="ui-font mt-[12px] inline-flex h-[48px] w-full items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
                           >
-                            Perziureti rezervacija
+                            Peržiūrėti rezervacija
                           </button>
                         </div>
                       </div>
@@ -1369,7 +1370,7 @@ export default function PartnerReservationsPage() {
                           onClick={() => setActiveOrderId(order.id)}
                           className="ui-font inline-flex h-[44px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
-                          Perziureti rezervacija
+                          Peržiūrėti rezervacija
                         </button>
                       </div>
                     </article>
