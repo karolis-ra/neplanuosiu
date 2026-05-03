@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import Loader from "../components/Loader";
 import SelectControl from "../components/SelectControl";
+import { notifyBookingDecision } from "../lib/emailNotifications";
 
 const ROLE_OPTIONS = [
   { value: "client", label: "Klientas" },
@@ -1194,6 +1195,11 @@ export default function AdminPage() {
         booking.id === bookingId ? { ...booking, status } : booking,
       ),
     );
+    await notifyBookingDecision({
+      bookingId,
+      approvalType: "booking",
+      status,
+    });
     showSuccess("Rezervacijos būsena atnaujinta.");
   }
 
@@ -1322,6 +1328,14 @@ export default function AdminPage() {
           };
         }),
       );
+
+      await notifyBookingDecision({
+        bookingId: target.bookingId,
+        approvalType: target.approvalType,
+        serviceId: target.serviceId,
+        venueId: target.venueId,
+        status: target.nextStatus,
+      });
       showSuccess("Rezervacijos sprendimas išsaugotas.");
     } catch (error) {
       showError("Nepavyko išsaugoti rezervacijos sprendimo.", error);

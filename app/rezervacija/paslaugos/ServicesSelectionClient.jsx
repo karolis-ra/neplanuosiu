@@ -7,6 +7,8 @@ import {
   buildReservationInterval,
   groupServicesByType,
   isProviderAvailableForReservation,
+  isOverlap,
+  timeToMinutes,
 } from "../../lib/serviceAvailability";
 import { mapServiceImagesWithUrls } from "../../lib/serviceImageUtils";
 import ResponsiveImageFrame from "../../components/ResponsiveImageFrame";
@@ -18,6 +20,34 @@ function formatPrice(value) {
 
 function getWeekdayFromDateString(dateStr) {
   return new Date(dateStr).getDay();
+}
+
+function isMissingRelationError(error) {
+  return error?.code === "42P01";
+}
+
+function isServiceBlockedForReservation({
+  serviceUnavailabilityRows,
+  serviceId,
+  eventDate,
+  startTime,
+  endTime,
+}) {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+
+  return (serviceUnavailabilityRows || []).some((item) => {
+    if (item.service_id !== serviceId || item.date !== eventDate) {
+      return false;
+    }
+
+    return isOverlap(
+      start,
+      end,
+      timeToMinutes(item.start_time),
+      timeToMinutes(item.end_time),
+    );
+  });
 }
 
 function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
@@ -81,11 +111,11 @@ function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
             onClick={() => onSelect(item)}
             className={`ui-font inline-flex h-[42px] items-center justify-center rounded-[16px] px-[12px] text-[14px] font-medium transition ${
               isSelected
-                ? "bg-primary text-white"
+                ? "border border-red-200 bg-red-50 text-red-600 hover:border-red-300 hover:bg-red-100 hover:text-red-700"
                 : "bg-primary text-white shadow-sm hover:bg-dark"
             }`}
           >
-            {isSelected ? "Pasirinkta" : "Pasirinkti"}
+            {isSelected ? "Pašalinti" : "Pasirinkti"}
           </button>
         </div>
       </div>
@@ -96,12 +126,15 @@ function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
 function CategorySection({
   title,
   items,
-  selectedId,
-  selectedOrigin,
+  selectedItems = [],
   onSelect,
   onOpenDetails,
   emptyText,
 }) {
+  const selectedKeys = new Set(
+    selectedItems.map((item) => `${item.__origin}-${item.id}`),
+  );
+
   if (!items.length) {
     return (
       <section className="rounded-[24px] border border-slate-200 bg-white p-[20px] shadow-sm">
@@ -128,8 +161,7 @@ function CategorySection({
 
       <div className="grid gap-[14px] md:grid-cols-2">
         {items.map((item) => {
-          const isSelected =
-            selectedId === item.id && selectedOrigin === item.__origin;
+          const isSelected = selectedKeys.has(`${item.__origin}-${item.id}`);
 
           return (
             <ServiceCard
@@ -163,8 +195,8 @@ export default function ServicesSelectionClient() {
   const [error, setError] = useState("");
 
   const [selectedDecorations, setSelectedDecorations] = useState(null);
-  const [selectedAnimator, setSelectedAnimator] = useState(null);
-  const [selectedCake, setSelectedCake] = useState(null);
+  const [selectedAnimators, setSelectedAnimators] = useState([]);
+  const [selectedCakes, setSelectedCakes] = useState([]);
 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsService, setDetailsService] = useState(null);
@@ -309,6 +341,7 @@ export default function ServicesSelectionClient() {
         const [
           availabilityRes,
           unavailabilityRes,
+          serviceUnavailabilityRes,
           relatedServicesRes,
           bookingServicesRes,
           serviceImagesRes,
@@ -323,6 +356,12 @@ export default function ServicesSelectionClient() {
             .from("service_provider_unavailability")
             .select("id, provider_id, date, start_time, end_time")
             .in("provider_id", providerIds)
+            .eq("date", date),
+
+          supabase
+            .from("service_unavailability")
+            .select("id, service_id, date, start_time, end_time")
+            .in("service_id", candidateServiceIds)
             .eq("date", date),
 
           supabase
@@ -354,6 +393,12 @@ export default function ServicesSelectionClient() {
 
         if (availabilityRes.error) throw availabilityRes.error;
         if (unavailabilityRes.error) throw unavailabilityRes.error;
+        if (
+          serviceUnavailabilityRes.error &&
+          !isMissingRelationError(serviceUnavailabilityRes.error)
+        ) {
+          throw serviceUnavailabilityRes.error;
+        }
         if (relatedServicesRes.error) throw relatedServicesRes.error;
         if (bookingServicesRes.error) throw bookingServicesRes.error;
         if (serviceImagesRes.error) throw serviceImagesRes.error;
@@ -416,6 +461,21 @@ export default function ServicesSelectionClient() {
 
         const filtered = scopedServices
           .filter((service) => {
+            if (
+              isServiceBlockedForReservation({
+                serviceUnavailabilityRows:
+                  serviceUnavailabilityRes.error
+                    ? []
+                    : serviceUnavailabilityRes.data || [],
+                serviceId: service.id,
+                eventDate: date,
+                startTime: time,
+                endTime: reservation.endTime,
+              })
+            ) {
+              return false;
+            }
+
             const needsProviderAvailability =
               service.service_type === "animator" ||
               Number(service.duration_minutes || 0) > 0;
@@ -479,8 +539,8 @@ export default function ServicesSelectionClient() {
 
   const selectedServices = [
     selectedDecorations,
-    selectedAnimator,
-    selectedCake,
+    ...selectedAnimators,
+    ...selectedCakes,
   ].filter(Boolean);
 
   const servicesTotal = selectedServices.reduce(
@@ -493,17 +553,22 @@ export default function ServicesSelectionClient() {
   const continueToCheckout = () => {
     const query = new URLSearchParams(searchParams.toString());
 
+    query.delete("decorationsId");
     if (selectedDecorations) {
       query.set("decorationsId", selectedDecorations.id);
     }
 
-    if (selectedAnimator) {
-      query.set("animatorId", selectedAnimator.id);
-    }
+    query.delete("animatorId");
+    query.delete("animatorIds");
+    selectedAnimators.forEach((item) => {
+      query.append("animatorIds", item.id);
+    });
 
-    if (selectedCake) {
-      query.set("cakeId", selectedCake.id);
-    }
+    query.delete("cakeId");
+    query.delete("cakeIds");
+    selectedCakes.forEach((item) => {
+      query.append("cakeIds", item.id);
+    });
 
     query.set("servicesTotal", String(servicesTotal));
     query.set("grandTotal", String(grandTotal));
@@ -515,7 +580,9 @@ export default function ServicesSelectionClient() {
     const query = new URLSearchParams(searchParams.toString());
     query.delete("decorationsId");
     query.delete("animatorId");
+    query.delete("animatorIds");
     query.delete("cakeId");
+    query.delete("cakeIds");
     query.delete("servicesTotal");
     query.delete("grandTotal");
 
@@ -537,18 +604,28 @@ export default function ServicesSelectionClient() {
     }
 
     if (service.service_type === "animator") {
-      setSelectedAnimator((prev) =>
-        prev?.id === service.id && prev?.__origin === service.__origin
-          ? null
-          : service,
+      setSelectedAnimators((current) =>
+        current.some(
+          (item) => item.id === service.id && item.__origin === service.__origin,
+        )
+          ? current.filter(
+              (item) =>
+                !(item.id === service.id && item.__origin === service.__origin),
+            )
+          : [...current, service],
       );
     }
 
     if (service.service_type === "cake") {
-      setSelectedCake((prev) =>
-        prev?.id === service.id && prev?.__origin === service.__origin
-          ? null
-          : service,
+      setSelectedCakes((current) =>
+        current.some(
+          (item) => item.id === service.id && item.__origin === service.__origin,
+        )
+          ? current.filter(
+              (item) =>
+                !(item.id === service.id && item.__origin === service.__origin),
+            )
+          : [...current, service],
       );
     }
   };
@@ -651,8 +728,7 @@ export default function ServicesSelectionClient() {
         <CategorySection
           title="Dekoracijos"
           items={grouped.decorations}
-          selectedId={selectedDecorations?.id}
-          selectedOrigin={selectedDecorations?.__origin}
+          selectedItems={selectedDecorations ? [selectedDecorations] : []}
           onSelect={handleSelectService}
           onOpenDetails={openDetails}
           emptyText="Pasirinktam laikui dekoracijų pasiūlymų neradome."
@@ -661,8 +737,7 @@ export default function ServicesSelectionClient() {
         <CategorySection
           title="Animatorius"
           items={grouped.animator}
-          selectedId={selectedAnimator?.id}
-          selectedOrigin={selectedAnimator?.__origin}
+          selectedItems={selectedAnimators}
           onSelect={handleSelectService}
           onOpenDetails={openDetails}
           emptyText="Pasirinktam laikui animatorių pasiūlymų neradome."
@@ -671,8 +746,7 @@ export default function ServicesSelectionClient() {
         <CategorySection
           title="Tortas"
           items={grouped.cake}
-          selectedId={selectedCake?.id}
-          selectedOrigin={selectedCake?.__origin}
+          selectedItems={selectedCakes}
           onSelect={handleSelectService}
           onOpenDetails={openDetails}
           emptyText="Pasirinktam laikui tortų pasiūlymų neradome."

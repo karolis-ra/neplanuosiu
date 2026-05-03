@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import Loader from "../../components/Loader";
 import PartnerReservationDetailsModal from "../../components/PartnerReservationDetailsModal";
+import { notifyBookingDecision } from "../../lib/emailNotifications";
 
 function getStatusLabel(status) {
   switch (status) {
@@ -975,6 +976,14 @@ export default function PartnerReservationsPage() {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("partner-reservations-changed"));
       }
+
+      await notifyBookingDecision({
+        bookingId: target.bookingId,
+        approvalType: target.approvalType,
+        serviceId: target.serviceId,
+        venueId: target.venueId,
+        status: target.nextStatus,
+      });
     } catch (error) {
       console.warn("reservation decision warning:", {
         message: error?.message,

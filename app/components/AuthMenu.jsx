@@ -11,6 +11,7 @@ import {
   CircleUser,
   CalendarCheck,
   ShieldCheck,
+  Settings,
 } from "lucide-react";
 
 function getReservationStatusSignature(bookings) {
@@ -577,6 +578,16 @@ export default function AuthMenu({ onCloseMobileMenu }) {
                     </span>
                   )}
                 </Link>
+                {!isAdmin && (
+                  <Link
+                    href="/account#nustatymai"
+                    onClick={handleLinkClick}
+                    className="ui-font flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm font-bold hover:text-primary"
+                  >
+                    <Settings size={18} />
+                    Nustatymai
+                  </Link>
+                )}
                 <button
                   onClick={handleLogout}
                   className="ui-font w-full font-bold  py-2 text-left text-sm flex items-center gap-2 hover:text-primary"

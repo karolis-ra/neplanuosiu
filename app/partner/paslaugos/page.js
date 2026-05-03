@@ -8,6 +8,8 @@ import ResponsiveImageFrame from "../../components/ResponsiveImageFrame";
 import Loader from "../../components/Loader";
 import ConfirmModal from "../../components/ConfirmModal";
 import SelectControl from "../../components/SelectControl";
+import DatePickerControl from "../../components/DatePickerControl";
+import TimeSelectControl from "../../components/TimeSelectControl";
 
 const BUCKET = "public-images";
 
@@ -60,6 +62,22 @@ const EMPTY_PROVIDER_FORM = {
 function formatPrice(value) {
   const amount = Number(value || 0);
   return `${amount.toFixed(2)} €`;
+}
+
+function timeToMinutes(value) {
+  const [hours, minutes] = String(value || "00:00")
+    .slice(0, 5)
+    .split(":")
+    .map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+
+function rangesOverlap(startA, endA, startB, endB) {
+  return startA < endB && startB < endA;
+}
+
+function isMissingRelationError(error) {
+  return error?.code === "42P01";
 }
 
 function getServiceTypeLabel(type) {
@@ -196,6 +214,118 @@ function ServiceImageCarousel({ images = [], name }) {
   );
 }
 
+function ServiceBlockModal({
+  service,
+  form,
+  saving,
+  error,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  if (!service) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 px-[16px] py-[24px]">
+      <section className="w-full max-w-[520px] rounded-[28px] bg-white p-[22px] shadow-xl">
+        <div className="flex items-start justify-between gap-[16px]">
+          <div>
+            <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+              Užimtas laikas
+            </p>
+            <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
+              {service.name}
+            </h2>
+            <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
+              Pažymėkite laiką, kai ši paslauga užimta už platformos ribų.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
+            aria-label="Uždaryti"
+          >
+            ×
+          </button>
+        </div>
+
+        {error && (
+          <p className="mt-[16px] rounded-[16px] bg-red-50 px-[14px] py-[10px] ui-font text-[14px] text-red-600">
+            {error}
+          </p>
+        )}
+
+        <form onSubmit={onSubmit} className="mt-[18px] space-y-[14px]">
+          <label className="block">
+            <span className="ui-font text-[13px] font-semibold text-slate-600">
+              Data
+            </span>
+            <DatePickerControl
+              value={form.date}
+              onChange={(nextValue) => onChange("date", nextValue)}
+              placeholder="Pasirinkite datą"
+              className="mt-[6px]"
+            />
+          </label>
+
+          <div className="grid gap-[12px] sm:grid-cols-2">
+            <label className="block">
+              <span className="ui-font text-[13px] font-semibold text-slate-600">
+                Nuo
+              </span>
+              <TimeSelectControl
+                value={form.startTime}
+                onChange={(nextValue) => onChange("startTime", nextValue)}
+                placeholder="Pradžios laikas"
+                className="mt-[6px]"
+              />
+            </label>
+
+            <label className="block">
+              <span className="ui-font text-[13px] font-semibold text-slate-600">
+                Iki
+              </span>
+              <TimeSelectControl
+                value={form.endTime}
+                onChange={(nextValue) => onChange("endTime", nextValue)}
+                placeholder="Pabaigos laikas"
+                className="mt-[6px]"
+              />
+            </label>
+          </div>
+
+          <div className="rounded-[18px] bg-slate-50 px-[14px] py-[12px]">
+            <p className="ui-font text-[13px] leading-[20px] text-slate-500">
+              Šiuo laiku klientai nebegalės pasirinkti šios paslaugos, jei
+              rezervacijos laikas persidengs su pažymėtu užimtumu.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-[10px] sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              Atšaukti
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {saving ? "Saugoma..." : "Pažymėti kaip užimtą"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 export default function PartnerServicesPage() {
   const router = useRouter();
 
@@ -213,6 +343,14 @@ export default function PartnerServicesPage() {
   const [editingProvider, setEditingProvider] = useState(false);
   const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
   const [savingProvider, setSavingProvider] = useState(false);
+  const [blockingService, setBlockingService] = useState(null);
+  const [blockForm, setBlockForm] = useState({
+    date: "",
+    startTime: "",
+    endTime: "",
+  });
+  const [blockError, setBlockError] = useState("");
+  const [savingBlock, setSavingBlock] = useState(false);
 
   const showsEditDurationField = SERVICE_TYPES_WITH_DURATION.includes(
     editForm.serviceType,
@@ -367,6 +505,124 @@ export default function PartnerServicesPage() {
       isMounted = false;
     };
   }, [router]);
+
+  function openBlockModal(service) {
+    setBlockingService(service);
+    setBlockForm({
+      date: "",
+      startTime: "",
+      endTime: "",
+    });
+    setBlockError("");
+  }
+
+  function closeBlockModal() {
+    if (savingBlock) return;
+    setBlockingService(null);
+    setBlockError("");
+  }
+
+  function updateBlockForm(field, value) {
+    setBlockForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setBlockError("");
+  }
+
+  async function handleCreateServiceBlock(event) {
+    event.preventDefault();
+
+    if (!blockingService) return;
+
+    const start = timeToMinutes(blockForm.startTime);
+    const end = timeToMinutes(blockForm.endTime);
+
+    if (!blockForm.date || !blockForm.startTime || !blockForm.endTime) {
+      setBlockError("Užpildykite datą, pradžios ir pabaigos laiką.");
+      return;
+    }
+
+    if (end <= start) {
+      setBlockError("Pabaigos laikas turi būti vėlesnis už pradžios laiką.");
+      return;
+    }
+
+    try {
+      setSavingBlock(true);
+      setBlockError("");
+      setErrorMsg("");
+      setSuccessMsg("");
+
+      const [blocksRes, bookingServicesRes] = await Promise.all([
+        supabase
+          .from("service_unavailability")
+          .select("id, start_time, end_time")
+          .eq("service_id", blockingService.id)
+          .eq("date", blockForm.date),
+        supabase
+          .from("booking_services")
+          .select(
+            `
+            id,
+            start_time,
+            end_time,
+            booking:bookings!booking_services_booking_id_fkey (
+              event_date,
+              status
+            )
+          `,
+          )
+          .eq("service_id", blockingService.id),
+      ]);
+
+      if (blocksRes.error) throw blocksRes.error;
+      if (bookingServicesRes.error) throw bookingServicesRes.error;
+
+      const existingBusyIntervals = [
+        ...(blocksRes.data || []),
+        ...(bookingServicesRes.data || []).filter((item) => {
+          const booking = item.booking;
+          if (!booking || booking.event_date !== blockForm.date) return false;
+          return booking.status !== "cancelled" && booking.status !== "rejected";
+        }),
+      ];
+
+      const hasConflict = existingBusyIntervals.some((item) =>
+        rangesOverlap(
+          start,
+          end,
+          timeToMinutes(item.start_time),
+          timeToMinutes(item.end_time),
+        ),
+      );
+
+      if (hasConflict) {
+        setBlockError("Pasirinktas laikas jau persidengia su kitu užimtumu.");
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from("service_unavailability")
+        .insert({
+          service_id: blockingService.id,
+          date: blockForm.date,
+          start_time: blockForm.startTime,
+          end_time: blockForm.endTime,
+        });
+
+      if (insertError) throw insertError;
+
+      setBlockingService(null);
+      setBlockError("");
+      setSuccessMsg("Paslaugos laikas užblokuotas.");
+    } catch (error) {
+      console.error("service block insert error:", error);
+      setBlockError("Nepavyko pažymėti užimto laiko. Bandykite dar kartą.");
+    } finally {
+      setSavingBlock(false);
+    }
+  }
 
   function openProviderModal() {
     if (!provider) return;
@@ -667,6 +923,18 @@ export default function PartnerServicesPage() {
         .eq("service_id", serviceToDelete.id);
 
       if (bookingServicesError) throw bookingServicesError;
+
+      const { error: serviceUnavailabilityError } = await supabase
+        .from("service_unavailability")
+        .delete()
+        .eq("service_id", serviceToDelete.id);
+
+      if (
+        serviceUnavailabilityError &&
+        !isMissingRelationError(serviceUnavailabilityError)
+      ) {
+        throw serviceUnavailabilityError;
+      }
 
       const { error: serviceImagesDeleteError } = await supabase
         .from("service_images")
@@ -970,16 +1238,24 @@ export default function PartnerServicesPage() {
                   <button
                     type="button"
                     onClick={() => openEditModal(service)}
-                    className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
+                    className="ui-font inline-flex h-[46px] flex-1 items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
                   >
                     Valdyti paslaugą
                   </button>
 
                   <button
                     type="button"
+                    onClick={() => openBlockModal(service)}
+                    className="ui-font inline-flex h-[46px] flex-1 items-center justify-center rounded-[16px] border border-primary/25 bg-primary/10 px-[16px] text-[14px] font-semibold text-primary transition hover:bg-primary/15"
+                  >
+                    Blokuoti laiką
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setServiceToDelete(service)}
                     disabled={deletingServiceId === service.id}
-                    className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-red-200 bg-red-50 px-[16px] text-[14px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="ui-font inline-flex h-[46px] flex-1 items-center justify-center rounded-[16px] border border-red-200 bg-red-50 px-[16px] text-[14px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {deletingServiceId === service.id
                       ? "Trinama..."
@@ -991,6 +1267,16 @@ export default function PartnerServicesPage() {
           </div>
         )}
       </section>
+
+      <ServiceBlockModal
+        service={blockingService}
+        form={blockForm}
+        saving={savingBlock}
+        error={blockError}
+        onChange={updateBlockForm}
+        onClose={closeBlockModal}
+        onSubmit={handleCreateServiceBlock}
+      />
 
       {editingProvider && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">

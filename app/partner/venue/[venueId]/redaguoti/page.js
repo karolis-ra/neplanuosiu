@@ -426,7 +426,7 @@ export default function EditVenuePage() {
 
         if (error) {
           throw createStepError(
-            "Nepavyko istrinti rezervaciju tvirtinimu",
+            "Nepavyko ištrinti rezervaciju tvirtinimu",
             error,
           );
         }
@@ -439,7 +439,7 @@ export default function EditVenuePage() {
 
       if (venueApprovalsError) {
         throw createStepError(
-          "Nepavyko istrinti erdves tvirtinimu",
+          "Nepavyko ištrinti erdves tvirtinimu",
           venueApprovalsError,
         );
       }
@@ -452,7 +452,7 @@ export default function EditVenuePage() {
 
         if (serviceApprovalsError) {
           throw createStepError(
-            "Nepavyko istrinti paslaugu tvirtinimu",
+            "Nepavyko ištrinti paslaugu tvirtinimu",
             serviceApprovalsError,
           );
         }
@@ -464,7 +464,7 @@ export default function EditVenuePage() {
 
         if (bookingServicesByServiceError) {
           throw createStepError(
-            "Nepavyko istrinti rezervaciju paslaugu rysiu",
+            "Nepavyko ištrinti rezervaciju paslaugu rysiu",
             bookingServicesByServiceError,
           );
         }
@@ -476,7 +476,7 @@ export default function EditVenuePage() {
 
         if (serviceImagesDeleteError) {
           throw createStepError(
-            "Nepavyko istrinti paslaugu nuotrauku irasu",
+            "Nepavyko ištrinti paslaugu nuotrauku irasu",
             serviceImagesDeleteError,
           );
         }
@@ -490,7 +490,7 @@ export default function EditVenuePage() {
 
         if (bookingServicesByBookingError) {
           throw createStepError(
-            "Nepavyko istrinti rezervaciju papildomu paslaugu",
+            "Nepavyko ištrinti rezervaciju papildomu paslaugu",
             bookingServicesByBookingError,
           );
         }
@@ -504,7 +504,7 @@ export default function EditVenuePage() {
 
         if (favoritesError) {
           throw createStepError(
-            "Nepavyko istrinti megstamu kambariu irasu",
+            "Nepavyko ištrinti megstamu kambariu irasu",
             favoritesError,
           );
         }
@@ -516,7 +516,7 @@ export default function EditVenuePage() {
 
         if (categoriesError) {
           throw createStepError(
-            "Nepavyko istrinti kambario kategoriju",
+            "Nepavyko ištrinti kambario kategoriju",
             categoriesError,
           );
         }
@@ -528,7 +528,7 @@ export default function EditVenuePage() {
 
         if (roomUnavailabilityError) {
           throw createStepError(
-            "Nepavyko istrinti kambario nepasiekiamumo irasu",
+            "Nepavyko ištrinti kambario nepasiekiamumo irasu",
             roomUnavailabilityError,
           );
         }
@@ -540,7 +540,7 @@ export default function EditVenuePage() {
 
         if (availabilityError) {
           throw createStepError(
-            "Nepavyko istrinti kambario darbo laiko",
+            "Nepavyko ištrinti kambario darbo laiko",
             availabilityError,
           );
         }
@@ -552,7 +552,7 @@ export default function EditVenuePage() {
         .eq("venue_id", venueId);
 
       if (reviewsError) {
-        throw createStepError("Nepavyko istrinti atsiliepimu", reviewsError);
+        throw createStepError("Nepavyko ištrinti atsiliepimu", reviewsError);
       }
 
       const { error: imagesDeleteError } = await supabase
@@ -562,7 +562,7 @@ export default function EditVenuePage() {
 
       if (imagesDeleteError) {
         throw createStepError(
-          "Nepavyko istrinti erdves nuotrauku irasu",
+          "Nepavyko ištrinti erdves nuotrauku irasu",
           imagesDeleteError,
         );
       }
@@ -575,7 +575,7 @@ export default function EditVenuePage() {
 
         if (bookingsDeleteError) {
           throw createStepError(
-            "Nepavyko istrinti rezervaciju",
+            "Nepavyko ištrinti rezervaciju",
             bookingsDeleteError,
           );
         }
@@ -589,7 +589,7 @@ export default function EditVenuePage() {
 
         if (servicesDeleteError) {
           throw createStepError(
-            "Nepavyko istrinti paslaugu",
+            "Nepavyko ištrinti paslaugu",
             servicesDeleteError,
           );
         }
@@ -602,7 +602,7 @@ export default function EditVenuePage() {
           .in("id", roomIds);
 
         if (roomsDeleteError) {
-          throw createStepError("Nepavyko istrinti kambariu", roomsDeleteError);
+          throw createStepError("Nepavyko ištrinti kambariu", roomsDeleteError);
         }
       }
 
@@ -614,7 +614,7 @@ export default function EditVenuePage() {
 
       if (venueDeleteError) {
         throw createStepError(
-          "Nepavyko istrinti žaidimų erdvės",
+          "Nepavyko ištrinti žaidimų erdvės",
           venueDeleteError,
         );
       }
@@ -640,7 +640,7 @@ export default function EditVenuePage() {
       setErrorMsg(
         getReadableError(
           error,
-          "Nepavyko istrinti žaidimų erdvės. Gali buti, kad vis dar yra susietu rezervaciju arba truksta DB leidimu.",
+          "Nepavyko ištrinti žaidimų erdvės. Gali buti, kad vis dar yra susietu rezervaciju arba truksta DB leidimu.",
         ),
       );
       setDeleteModalOpen(false);
@@ -901,16 +901,16 @@ export default function EditVenuePage() {
             disabled={submitting || deleting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] border border-red-200 bg-red-50 px-[18px] text-[15px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {deleting ? "Trinama..." : "Istrinti žaidimų erdvę"}
+            {deleting ? "Trinama..." : "Ištrinti žaidimų erdvę"}
           </button>
         </form>
       </section>
 
       <ConfirmModal
         open={deleteModalOpen}
-        title="Istrinti žaidimų erdvę?"
-        message="Bus istrinti visi susieti kambariai, ju nuotraukos, paslaugos ir kita su sia erdve susijusi informacija. Ar tikrai norite Tęsti?"
-        confirmLabel="Taip, istrinti"
+        title="Ištrinti žaidimų erdvę?"
+        message="Bus ištrinti visi susieti kambariai, ju nuotraukos, paslaugos ir kita su sia erdve susijusi informacija. Ar tikrai norite Tęsti?"
+        confirmLabel="Taip, ištrinti"
         cancelLabel="Ne, palikti"
         loading={deleting}
         onCancel={() => setDeleteModalOpen(false)}

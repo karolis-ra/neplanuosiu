@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import Loader from "../../components/Loader";
+import DatePickerControl from "../../components/DatePickerControl";
+import TimeSelectControl from "../../components/TimeSelectControl";
 
 const BUCKET = "public-images";
 
@@ -79,12 +81,11 @@ function RoomBlockModal({
             <span className="ui-font text-[13px] font-semibold text-slate-600">
               Data
             </span>
-            <input
-              type="date"
+            <DatePickerControl
               value={form.date}
-              onChange={(event) => onChange("date", event.target.value)}
-              className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
-              required
+              onChange={(nextValue) => onChange("date", nextValue)}
+              placeholder="Pasirinkite datą"
+              className="mt-[6px]"
             />
           </label>
 
@@ -93,12 +94,11 @@ function RoomBlockModal({
               <span className="ui-font text-[13px] font-semibold text-slate-600">
                 Nuo
               </span>
-              <input
-                type="time"
+              <TimeSelectControl
                 value={form.startTime}
-                onChange={(event) => onChange("startTime", event.target.value)}
-                className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
-                required
+                onChange={(nextValue) => onChange("startTime", nextValue)}
+                placeholder="Pradžios laikas"
+                className="mt-[6px]"
               />
             </label>
 
@@ -106,12 +106,11 @@ function RoomBlockModal({
               <span className="ui-font text-[13px] font-semibold text-slate-600">
                 Iki
               </span>
-              <input
-                type="time"
+              <TimeSelectControl
                 value={form.endTime}
-                onChange={(event) => onChange("endTime", event.target.value)}
-                className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
-                required
+                onChange={(nextValue) => onChange("endTime", nextValue)}
+                placeholder="Pabaigos laikas"
+                className="mt-[6px]"
               />
             </label>
           </div>

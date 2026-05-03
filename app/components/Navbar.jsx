@@ -20,7 +20,7 @@ export default function Navbar() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           {/* LOGO */}
           <Link href="/" className="heading text-xl font-bold">
-            NEPLANAUOSIU
+            NEPLANUOSIU
           </Link>
 
           {/* DESKTOP MENU */}

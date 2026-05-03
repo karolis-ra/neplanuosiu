@@ -391,7 +391,7 @@ export default function RoomServicesManagePage() {
       setSuccessMsg("Paslauga istrinta.");
     } catch (error) {
       console.error("delete room service error:", error);
-      setErrorMsg("Nepavyko istrinti paslaugos.");
+      setErrorMsg("Nepavyko ištrinti paslaugos.");
     } finally {
       setDeletingServiceId("");
     }
@@ -517,7 +517,7 @@ export default function RoomServicesManagePage() {
                         onClick={() => setServiceToDelete(service)}
                         className="ui-font text-[13px] font-semibold text-red-600"
                       >
-                        Istrinti
+                        Ištrinti
                       </button>
                     </div>
                   </div>
@@ -703,9 +703,9 @@ export default function RoomServicesManagePage() {
 
       <ConfirmModal
         open={Boolean(serviceToDelete)}
-        title="Istrinti paslauga?"
+        title="Ištrinti paslauga?"
         message={`Paslauga "${serviceToDelete?.name || ""}" bus istrinta is sio kambario. Ar tikrai norite Tęsti?`}
-        confirmLabel="Taip, istrinti"
+        confirmLabel="Taip, ištrinti"
         cancelLabel="Ne, palikti"
         loading={Boolean(deletingServiceId)}
         onCancel={() => setServiceToDelete(null)}

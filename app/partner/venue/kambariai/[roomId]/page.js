@@ -10,10 +10,10 @@ const BUCKET = "public-images";
 const WEEKDAYS = [
   { value: 1, label: "Pirmadienis", shortLabel: "Pr" },
   { value: 2, label: "Antradienis", shortLabel: "An" },
-  { value: 3, label: "Treciadienis", shortLabel: "Tr" },
+  { value: 3, label: "Trečiadienis", shortLabel: "Tr" },
   { value: 4, label: "Ketvirtadienis", shortLabel: "Kt" },
   { value: 5, label: "Penktadienis", shortLabel: "Pn" },
-  { value: 6, label: "Sestadienis", shortLabel: "St" },
+  { value: 6, label: "Šeštadienis", shortLabel: "St" },
   { value: 0, label: "Sekmadienis", shortLabel: "Sk" },
 ];
 
@@ -166,7 +166,7 @@ export default function EditRoomPage() {
       } catch (error) {
         console.error("load room manage error:", error);
         if (isMounted) {
-          setErrorMsg("Nepavyko uzkrauti kambario informacijos.");
+          setErrorMsg("Nepavyko užkrauti kambario informacijos.");
         }
       } finally {
         if (isMounted) {
@@ -246,7 +246,7 @@ export default function EditRoomPage() {
       }
 
       await loadRoomData(user.id);
-      setSuccessMsg("Kambario informacija issaugota.");
+      setSuccessMsg("Kambario informacija išsaugota.");
     } catch (error) {
       console.error("save room error:", error);
       setErrorMsg("Nepavyko išsaugoti kambario informacijos.");
@@ -300,13 +300,13 @@ export default function EditRoomPage() {
       } = await supabase.auth.getUser();
       await loadRoomData(user.id);
       setNewFiles([]);
-      setSuccessMsg("Kambario nuotraukos pridetos.");
+      setSuccessMsg("Kambario nuotraukos pridėtos.");
     } catch (error) {
       console.error("upload room images error:", error);
       if (uploadedPaths.length) {
         await supabase.storage.from(BUCKET).remove(uploadedPaths);
       }
-      setErrorMsg("Nepavyko ikelti kambario nuotrauku.");
+      setErrorMsg("Nepavyko įkelti kambario nuotraukų.");
     } finally {
       setUploadingImages(false);
     }
@@ -343,7 +343,7 @@ export default function EditRoomPage() {
       await loadRoomData(user.id);
     } catch (error) {
       console.error("delete room image error:", error);
-      setErrorMsg("Nepavyko istrinti nuotraukos.");
+      setErrorMsg("Nepavyko ištrinti nuotraukos.");
     }
   }
 
@@ -359,7 +359,7 @@ export default function EditRoomPage() {
             Kambario valdymas
           </p>
           <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-            Redaguoti kambari
+            Redaguoti kambarį
           </h1>
         </div>
 
@@ -379,7 +379,7 @@ export default function EditRoomPage() {
             onClick={() => router.push("/partner/venue")}
             className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Grįžti i valdyma
+            Grįžti į valdymą
           </button>
         </div>
       </div>
@@ -413,7 +413,7 @@ export default function EditRoomPage() {
 
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Aprasymas
+                Aprašymas
               </label>
               <textarea
                 value={description}
@@ -424,76 +424,122 @@ export default function EditRoomPage() {
             </div>
 
             <div className="grid gap-[12px] md:grid-cols-4">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="Kaina"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={extraHourPrice}
-                onChange={(e) => setExtraHourPrice(e.target.value)}
-                placeholder="Papildomos valandos kaina"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
-              <input
-                type="number"
-                min="1"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                placeholder="Talpa"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
-              <input
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Miestas"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Kaina
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="150"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Papildomos valandos kaina
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={extraHourPrice}
+                  onChange={(e) => setExtraHourPrice(e.target.value)}
+                  placeholder="20"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Talpa
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  placeholder="15"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Miestas
+                </label>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Vilnius"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
             </div>
 
             <div className="grid gap-[12px] md:grid-cols-4">
-              <input
-                type="number"
-                min="30"
-                step="30"
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(e.target.value)}
-                placeholder="Trukme"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
-              <input
-                type="number"
-                min="0"
-                step="15"
-                value={bufferMinutes}
-                onChange={(e) => setBufferMinutes(e.target.value)}
-                placeholder="Bufferis"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
-              <input
-                type="number"
-                min="0"
-                value={minAge}
-                onChange={(e) => setMinAge(e.target.value)}
-                placeholder="Min amzius"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
-              <input
-                type="number"
-                min="0"
-                value={maxAge}
-                onChange={(e) => setMaxAge(e.target.value)}
-                placeholder="Max amzius"
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              />
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Minimali rezervacijos trukmė (min.)
+                </label>
+                <input
+                  type="number"
+                  min="30"
+                  step="30"
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(e.target.value)}
+                  placeholder="120"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Tarpas tarp rezervacijų (min.)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="15"
+                  value={bufferMinutes}
+                  onChange={(e) => setBufferMinutes(e.target.value)}
+                  placeholder="0"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Min. amžius
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={minAge}
+                  onChange={(e) => setMinAge(e.target.value)}
+                  placeholder="3"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-[6px]">
+                <label className="ui-font text-[13px] text-slate-600">
+                  Maks. amžius
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={maxAge}
+                  onChange={(e) => setMaxAge(e.target.value)}
+                  placeholder="12"
+                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                />
+              </div>
             </div>
 
             <div className="space-y-[12px]">
@@ -519,18 +565,29 @@ export default function EditRoomPage() {
               </div>
 
               <div className="grid gap-[12px] md:grid-cols-2">
-                <input
-                  type="time"
-                  value={openTime}
-                  onChange={(e) => setOpenTime(e.target.value)}
-                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-                />
-                <input
-                  type="time"
-                  value={closeTime}
-                  onChange={(e) => setCloseTime(e.target.value)}
-                  className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-                />
+                <div className="space-y-[6px]">
+                  <label className="ui-font text-[13px] text-slate-600">
+                    Darbo pradžia
+                  </label>
+                  <input
+                    type="time"
+                    value={openTime}
+                    onChange={(e) => setOpenTime(e.target.value)}
+                    className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div className="space-y-[6px]">
+                  <label className="ui-font text-[13px] text-slate-600">
+                    Darbo pabaiga
+                  </label>
+                  <input
+                    type="time"
+                    value={closeTime}
+                    onChange={(e) => setCloseTime(e.target.value)}
+                    className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -543,7 +600,7 @@ export default function EditRoomPage() {
                 Kambario nuotraukos
               </h2>
               <p className="ui-font mt-[4px] text-[14px] text-slate-500">
-                Galite pridėti ir istrinti esamas kambario galerijos nuotraukas.
+                Galite pridėti ir ištrinti esamas kambario galerijos nuotraukas.
               </p>
             </div>
           </div>
@@ -583,7 +640,7 @@ export default function EditRoomPage() {
               onClick={handleUploadImages}
               className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {uploadingImages ? "Keliama..." : "pridėti nuotraukas"}
+              {uploadingImages ? "Keliama..." : "Pridėti nuotraukas"}
             </button>
 
             <div className="grid gap-[12px] sm:grid-cols-2 lg:grid-cols-3">
@@ -604,7 +661,7 @@ export default function EditRoomPage() {
                   <div className="flex items-center justify-between gap-[10px] px-[12px] py-[10px]">
                     <span className="ui-font text-[12px] text-slate-500">
                       {image.is_primary
-                        ? "Pagrindine"
+                        ? "Pagrindinė"
                         : `Pozicija ${image.position + 1}`}
                     </span>
                     <button
@@ -612,7 +669,7 @@ export default function EditRoomPage() {
                       onClick={() => handleDeleteImage(image.id, image.path)}
                       className="ui-font text-[13px] font-semibold text-red-600"
                     >
-                      Istrinti
+                      Ištrinti
                     </button>
                   </div>
                 </div>
@@ -626,7 +683,7 @@ export default function EditRoomPage() {
           disabled={submitting}
           className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {submitting ? "Saugoma..." : "išsaugoti kambario pakeitimus"}
+          {submitting ? "Saugoma..." : "Išsaugoti kambario pakeitimus"}
         </button>
       </form>
     </main>

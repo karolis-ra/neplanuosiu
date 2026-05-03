@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
+import { notifyBookingCreated } from "../lib/emailNotifications";
 
 function parseTimeToMinutes(timeStr) {
   const normalized = String(timeStr || "").slice(0, 5);
@@ -17,12 +18,20 @@ function minutesToTimeStr(mins) {
   return `${h}:${m}`;
 }
 
+function rangesOverlap(startA, endA, startB, endB) {
+  return startA < endB && startB < endA;
+}
+
 function formatPrice(value) {
   return `${Number(value || 0).toFixed(2)} €`;
 }
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function isMissingRelationError(error) {
+  return error?.code === "42P01";
 }
 
 export default function ReservationClient() {
@@ -49,12 +58,22 @@ export default function ReservationClient() {
   );
 
   const selectedServiceIds = useMemo(
-    () =>
-      [
-        searchParams.get("decorationsId"),
-        searchParams.get("animatorId"),
-        searchParams.get("cakeId"),
-      ].filter(Boolean),
+    () => {
+      const animatorIds = searchParams.getAll("animatorIds");
+      const cakeIds = searchParams.getAll("cakeIds");
+
+      return Array.from(
+        new Set(
+          [
+            searchParams.get("decorationsId"),
+            ...animatorIds,
+            searchParams.get("animatorId"),
+            ...cakeIds,
+            searchParams.get("cakeId"),
+          ].filter(Boolean),
+        ),
+      );
+    },
     [searchParams],
   );
 
@@ -280,6 +299,51 @@ export default function ReservationClient() {
       const endMinutes = startMinutes + durationMinutes;
       const endTime = minutesToTimeStr(endMinutes);
 
+      if (selectedServices.length > 0) {
+        const { data: blockedRows, error: blockedError } = await supabase
+          .from("service_unavailability")
+          .select("service_id, date, start_time, end_time")
+          .in(
+            "service_id",
+            selectedServices.map((item) => item.id),
+          )
+          .eq("date", date);
+
+        if (blockedError && !isMissingRelationError(blockedError)) {
+          console.warn("service unavailability check warning:", blockedError);
+          setError("Nepavyko patikrinti pasirinktų paslaugų užimtumo.");
+          return;
+        }
+
+        const blockedServiceIds = new Set(
+          (blockedError ? [] : blockedRows || [])
+            .filter((item) =>
+              rangesOverlap(
+                startMinutes,
+                endMinutes,
+                parseTimeToMinutes(item.start_time),
+                parseTimeToMinutes(item.end_time),
+              ),
+            )
+            .map((item) => item.service_id),
+        );
+
+        if (blockedServiceIds.size > 0) {
+          const blockedNames = selectedServices
+            .filter((item) => blockedServiceIds.has(item.id))
+            .map((item) => item.name)
+            .filter(Boolean)
+            .join(", ");
+
+          setError(
+            blockedNames
+              ? `Paslauga „${blockedNames}“ pasirinktu laiku jau užimta. Grįžkite į paslaugų pasirinkimą ir pasirinkite kitą variantą.`
+              : "Viena iš pasirinktų paslaugų pasirinktu laiku jau užimta. Grįžkite į paslaugų pasirinkimą ir pasirinkite kitą variantą.",
+          );
+          return;
+        }
+      }
+
       const bookingPayload = {
         room_id: roomId,
         user_id: user?.id || null,
@@ -415,11 +479,7 @@ export default function ReservationClient() {
         }
       }
 
-      if (user) {
-        router.push("/account");
-        return;
-      }
-
+      await notifyBookingCreated(insertedBookingId);
       setSuccessBookingId(insertedBookingId);
     } catch (e) {
       console.warn("handleSubmit warning:", e);
@@ -447,21 +507,22 @@ export default function ReservationClient() {
     );
   }
 
-  if (successBookingId && !sessionUser) {
+  if (successBookingId) {
     return (
-      <main className="mx-auto max-w-[900px] px-[16px] py-[32px]">
-        <section className="rounded-[28px] bg-white p-[24px] shadow-sm">
+      <main className="mx-auto flex min-h-[70vh] max-w-[900px] items-center px-[16px] py-[32px]">
+        <section className="w-full rounded-[28px] bg-white p-[24px] shadow-sm">
           <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-            Rezervacijos užklausa pateikta
+            Užklausa priimta
           </p>
 
           <h1 className="mt-[8px] ui-font text-[28px] font-semibold text-slate-900">
-            Ačiū, rezervacijos užklausa sėkmingai pateikta
+            Rezervacijos užklausa sėkmingai pateikta
           </h1>
 
           <p className="mt-[12px] ui-font text-[14px] leading-[22px] text-slate-600">
-            Jūsų užklausa perduota patvirtinimui. Su jumis bus susisiekta pagal
-            pateiktus kontaktinius duomenis.
+            Apie žaidimų kambario ir pasirinktų paslaugų patvirtinimą
+            pranešime el. paštu. Rezervacijos eigą taip pat galite stebėti savo
+            profilio puslapyje.
           </p>
 
           <div className="mt-[20px] rounded-[20px] bg-slate-50 p-[16px]">
@@ -522,21 +583,33 @@ export default function ReservationClient() {
           </div>
 
           <div className="mt-[20px] flex flex-col gap-[12px] sm:flex-row">
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
-            >
-              Grįžti į pradžią
-            </button>
+            {sessionUser ? (
+              <button
+                type="button"
+                onClick={() => router.push("/account")}
+                className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
+              >
+                Grįžti į profilio puslapį
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => router.push("/")}
+                  className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
+                >
+                  Grįžti į pradžią
+                </button>
 
-            <button
-              type="button"
-              onClick={() => router.push("/registracija")}
-              className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Susikurti paskyrą
-            </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/registracija")}
+                  className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Susikurti paskyrą
+                </button>
+              </>
+            )}
           </div>
         </section>
       </main>
