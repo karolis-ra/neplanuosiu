@@ -401,10 +401,34 @@ export default function AuthMenu({ onCloseMobileMenu }) {
     if (onCloseMobileMenu) onCloseMobileMenu();
   }
 
+  function handleSettingsClick(event) {
+    handleLinkClick();
+
+    if (typeof window === "undefined") return;
+
+    const [targetPath, targetHash] = settingsHref.split("#");
+    const targetUrl = targetHash ? `${targetPath}#${targetHash}` : targetPath;
+
+    if (window.location.pathname === targetPath) {
+      event.preventDefault();
+      window.history.replaceState(null, "", targetUrl);
+      window.dispatchEvent(
+        new CustomEvent("open-account-settings", {
+          detail: { path: targetPath },
+        }),
+      );
+    }
+  }
+
   const displayName =
     user?.user_metadata?.full_name || user?.email || "Vartotojas";
   const isAdmin = userRole === "admin";
-  const profileHref = isAdmin ? "/admin" : "/account";
+  const isPartner =
+    userRole === "venue_owner" ||
+    userRole === "service_provider" ||
+    hasPartnerReservations;
+  const profileHref = isAdmin ? "/admin" : isPartner ? "/partner" : "/account";
+  const settingsHref = isPartner ? "/partner#nustatymai" : "/account#nustatymai";
   const hasPendingPartnerReservations = pendingPartnerReservations > 0;
   const notificationCount = isAdmin
     ? 0
@@ -580,8 +604,8 @@ export default function AuthMenu({ onCloseMobileMenu }) {
                 </Link>
                 {!isAdmin && (
                   <Link
-                    href="/account#nustatymai"
-                    onClick={handleLinkClick}
+                    href={settingsHref}
+                    onClick={handleSettingsClick}
                     className="ui-font flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm font-bold hover:text-primary"
                   >
                     <Settings size={18} />

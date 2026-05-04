@@ -336,6 +336,7 @@ export default function PartnerServicesPage() {
   const [provider, setProvider] = useState(null);
   const [services, setServices] = useState([]);
   const [serviceToDelete, setServiceToDelete] = useState(null);
+  const [deleteProviderModalOpen, setDeleteProviderModalOpen] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
   const [editPhotoFiles, setEditPhotoFiles] = useState([]);
@@ -343,6 +344,7 @@ export default function PartnerServicesPage() {
   const [editingProvider, setEditingProvider] = useState(false);
   const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
   const [savingProvider, setSavingProvider] = useState(false);
+  const [deletingProvider, setDeletingProvider] = useState(false);
   const [blockingService, setBlockingService] = useState(null);
   const [blockForm, setBlockForm] = useState({
     date: "",
@@ -973,6 +975,134 @@ export default function PartnerServicesPage() {
     }
   }
 
+  async function handleDeleteProviderProfile() {
+    if (!provider?.id) {
+      return;
+    }
+
+    setDeletingProvider(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const serviceIds = services.map((service) => service.id).filter(Boolean);
+      let storagePaths = [];
+
+      if (serviceIds.length) {
+        const { data: serviceImageRows, error: serviceImagesLoadError } =
+          await supabase
+            .from("service_images")
+            .select("path")
+            .in("service_id", serviceIds);
+
+        if (serviceImagesLoadError) throw serviceImagesLoadError;
+
+        storagePaths = (serviceImageRows || [])
+          .map((item) => item.path)
+          .filter(Boolean);
+
+        const { error: bookingApprovalsByServiceError } = await supabase
+          .from("booking_approvals")
+          .delete()
+          .in("service_id", serviceIds);
+
+        if (bookingApprovalsByServiceError) {
+          throw bookingApprovalsByServiceError;
+        }
+
+        const { error: bookingServicesError } = await supabase
+          .from("booking_services")
+          .delete()
+          .in("service_id", serviceIds);
+
+        if (bookingServicesError) throw bookingServicesError;
+
+        const { error: serviceUnavailabilityError } = await supabase
+          .from("service_unavailability")
+          .delete()
+          .in("service_id", serviceIds);
+
+        if (
+          serviceUnavailabilityError &&
+          !isMissingRelationError(serviceUnavailabilityError)
+        ) {
+          throw serviceUnavailabilityError;
+        }
+
+        const { error: serviceImagesDeleteError } = await supabase
+          .from("service_images")
+          .delete()
+          .in("service_id", serviceIds);
+
+        if (serviceImagesDeleteError) throw serviceImagesDeleteError;
+
+        const { error: servicesDeleteError } = await supabase
+          .from("services")
+          .delete()
+          .in("id", serviceIds);
+
+        if (servicesDeleteError) throw servicesDeleteError;
+      }
+
+      const { error: bookingApprovalsByProviderError } = await supabase
+        .from("booking_approvals")
+        .delete()
+        .eq("provider_id", provider.id);
+
+      if (bookingApprovalsByProviderError) {
+        throw bookingApprovalsByProviderError;
+      }
+
+      const { error: providerAvailabilityError } = await supabase
+        .from("service_provider_availability")
+        .delete()
+        .eq("provider_id", provider.id);
+
+      if (
+        providerAvailabilityError &&
+        !isMissingRelationError(providerAvailabilityError)
+      ) {
+        throw providerAvailabilityError;
+      }
+
+      const { error: providerUnavailabilityError } = await supabase
+        .from("service_provider_unavailability")
+        .delete()
+        .eq("provider_id", provider.id);
+
+      if (
+        providerUnavailabilityError &&
+        !isMissingRelationError(providerUnavailabilityError)
+      ) {
+        throw providerUnavailabilityError;
+      }
+
+      const { error: providerDeleteError } = await supabase
+        .from("service_providers")
+        .delete()
+        .eq("id", provider.id);
+
+      if (providerDeleteError) throw providerDeleteError;
+
+      if (storagePaths.length) {
+        await supabase.storage.from(BUCKET).remove(storagePaths);
+      }
+
+      setProvider(null);
+      setServices([]);
+      setDeleteProviderModalOpen(false);
+      setSuccessMsg("Paslaugų profilis ištrintas.");
+      router.replace("/partner");
+    } catch (error) {
+      console.error("delete service provider profile error:", error);
+      setErrorMsg(
+        "Nepavyko ištrinti paslaugų profilio. Gali būti, kad profiliui vis dar yra susietų rezervacijų arba trūksta duomenų bazės leidimų.",
+      );
+    } finally {
+      setDeletingProvider(false);
+    }
+  }
+
   if (loading) {
     return <Loader />;
   }
@@ -1105,6 +1235,15 @@ export default function PartnerServicesPage() {
               className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white shadow-md transition hover:bg-dark"
             >
               Peržiūrėti paslaugų užklausas
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeleteProviderModalOpen(true)}
+              disabled={deletingProvider}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-red-200 bg-red-50 px-[16px] text-[14px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deletingProvider ? "Trinama..." : "Ištrinti paslaugų profilį"}
             </button>
           </div>
         </section>
@@ -1684,6 +1823,17 @@ export default function PartnerServicesPage() {
         loading={Boolean(deletingServiceId)}
         onCancel={() => setServiceToDelete(null)}
         onConfirm={handleDeleteService}
+      />
+
+      <ConfirmModal
+        open={deleteProviderModalOpen}
+        title="Ištrinti paslaugų profilį?"
+        message="Bus pašalintas paslaugų profilis, visos jo paslaugos, nuotraukos ir užimti laikai. Susietos paslaugos taip pat bus pašalintos iš rezervacijų. Ar tikrai norite tęsti?"
+        confirmLabel="Taip, ištrinti profilį"
+        cancelLabel="Ne, palikti"
+        loading={deletingProvider}
+        onCancel={() => setDeleteProviderModalOpen(false)}
+        onConfirm={handleDeleteProviderProfile}
       />
     </main>
   );

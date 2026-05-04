@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
+import Loader from "../components/Loader";
 
 function resolveRouteByRole(role, fallbackPath = "/account") {
   if (!role) {
@@ -30,6 +31,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -98,7 +100,7 @@ export default function LoginPage() {
 
       if (hashSession?.user) {
         await redirectAuthenticatedUser(hashSession.user);
-        return;
+        return true;
       }
 
       const { data, error } = await supabase.auth.getSession();
@@ -107,12 +109,24 @@ export default function LoginPage() {
         console.error("oauth getSession error:", error.message);
       }
 
-      if (!isMounted || !data.session?.user) return;
+      if (!isMounted || !data.session?.user) return false;
 
       await redirectAuthenticatedUser(data.session.user);
+      return true;
     }
 
-    handleOAuthReturn();
+    handleOAuthReturn()
+      .then((redirected) => {
+        if (isMounted && !redirected) {
+          setCheckingAuth(false);
+        }
+      })
+      .catch((error) => {
+        console.error("oauth return handling error:", error);
+        if (isMounted) {
+          setCheckingAuth(false);
+        }
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -120,6 +134,7 @@ export default function LoginPage() {
 
         setTimeout(() => {
           if (isMounted) {
+            setCheckingAuth(true);
             redirectAuthenticatedUser(session.user);
           }
         }, 0);
@@ -176,12 +191,22 @@ export default function LoginPage() {
     setErrorMsg("");
     setGoogleLoading(true);
 
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/prisijungti?next=${encodeURIComponent(nextPath)}`,
       },
     });
+
+    if (error) {
+      console.error("google oauth start error:", error.message);
+      setErrorMsg("Nepavyko pradėti prisijungimo su Google.");
+      setGoogleLoading(false);
+    }
+  }
+
+  if (checkingAuth || googleLoading) {
+    return <Loader message="Tikriname prisijungimą..." />;
   }
 
   return (

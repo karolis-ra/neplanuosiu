@@ -31,6 +31,10 @@ function formatPrice(value) {
   return `${Number(value || 0).toFixed(2)} EUR`;
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 function formatDateInputValue(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -82,11 +86,167 @@ function pickBestApproval(current, candidate) {
   return b[2] >= a[2] ? candidate : current;
 }
 
+function PartnerSettingsModal({
+  open,
+  form,
+  saving,
+  deleting,
+  error,
+  success,
+  deleteConfirmText,
+  onClose,
+  onChange,
+  onSubmit,
+  onDelete,
+  onDeleteConfirmChange,
+}) {
+  if (!open) return null;
+
+  const canDelete = deleteConfirmText.trim().toUpperCase() === "IŠTRINTI";
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
+      <section className="w-full max-w-[760px] rounded-[28px] bg-white p-[22px] shadow-xl">
+        <div className="mb-[18px] flex items-start justify-between gap-[16px]">
+          <div>
+            <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+              Paskyros nustatymai
+            </p>
+            <h2 className="mt-[6px] ui-font text-[26px] font-semibold text-slate-900">
+              Partnerio kontaktai
+            </h2>
+            <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
+              Čia galite atnaujinti partnerio paskyros kontaktinius duomenis
+              arba visam laikui ištrinti paskyrą.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving || deleting}
+            className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+            aria-label="Uždaryti"
+          >
+            ×
+          </button>
+        </div>
+
+        {error && (
+          <p className="mb-[14px] rounded-[16px] bg-red-50 px-[14px] py-[10px] ui-font text-[14px] text-red-600">
+            {error}
+          </p>
+        )}
+
+        {success && (
+          <p className="mb-[14px] rounded-[16px] bg-emerald-50 px-[14px] py-[10px] ui-font text-[14px] text-emerald-700">
+            {success}
+          </p>
+        )}
+
+        <form onSubmit={onSubmit} className="space-y-[14px]">
+          <div className="grid gap-[12px] md:grid-cols-2">
+            <label className="block">
+              <span className="ui-font text-[13px] font-semibold text-slate-600">
+                El. paštas
+              </span>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(event) => onChange("email", event.target.value)}
+                className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
+              />
+              <span className="mt-[6px] block ui-font text-[12px] leading-[18px] text-slate-500">
+                Pakeitus el. pašto adresą, gali reikėti patvirtinti pakeitimą
+                gautame laiške.
+              </span>
+            </label>
+
+            <label className="block">
+              <span className="ui-font text-[13px] font-semibold text-slate-600">
+                Telefono numeris
+              </span>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(event) => onChange("phone", event.target.value)}
+                className="mt-[6px] h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-primary"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-[10px] sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving || deleting}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              Uždaryti
+            </button>
+            <button
+              type="submit"
+              disabled={saving || deleting}
+              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {saving ? "Saugoma..." : "Išsaugoti pakeitimus"}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-[22px] rounded-[22px] border border-red-200 bg-red-50 p-[16px]">
+          <h3 className="ui-font text-[18px] font-semibold text-red-700">
+            Paskyros ištrynimas
+          </h3>
+          <p className="mt-[6px] ui-font text-[14px] leading-[22px] text-red-700/80">
+            Ištrynus paskyrą, prisijungimas bus pašalintas visam laikui.
+            Partnerio profiliai bus atjungti nuo paskyros ir paslėpti iš viešos
+            paieškos, kad istorinės rezervacijos išliktų tvarkingos.
+          </p>
+
+          <label className="mt-[12px] block">
+            <span className="ui-font text-[13px] font-semibold text-red-700">
+              Jei tikrai norite tęsti, įrašykite „IŠTRINTI“
+            </span>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(event) => onDeleteConfirmChange(event.target.value)}
+              className="mt-[6px] h-[46px] w-full rounded-[16px] border border-red-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-red-400"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={!canDelete || deleting || saving}
+            className="ui-font mt-[12px] inline-flex h-[46px] items-center justify-center rounded-[16px] bg-red-600 px-[16px] text-[14px] font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200"
+          >
+            {deleting ? "Trinama..." : "Ištrinti paskyrą"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function PartnerPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentUserEmail, setCurrentUserEmail] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({
+    email: "",
+    phone: "",
+  });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsDeleting, setSettingsDeleting] = useState(false);
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsSuccess, setSettingsSuccess] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [venue, setVenue] = useState(null);
   const [serviceProvider, setServiceProvider] = useState(null);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
@@ -112,9 +272,12 @@ export default function PartnerPage() {
           return;
         }
 
+        setCurrentUserId(user.id);
+        setCurrentUserEmail(user.email || "");
+
         const { data: userRow, error: userError } = await supabase
           .from("users")
-          .select("role")
+          .select("role, email, phone")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -135,6 +298,11 @@ export default function PartnerPage() {
           router.replace("/paskyros-tipas");
           return;
         }
+
+        setSettingsForm({
+          email: userRow?.email || user.email || "",
+          phone: userRow?.phone || "",
+        });
 
         const { data: venueRow, error: venueError } = await supabase
           .from("venues")
@@ -357,22 +525,198 @@ export default function PartnerPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    function hasSettingsHash() {
+      return decodeURIComponent(window.location.hash || "").toLowerCase() === "#nustatymai";
+    }
+
+    function openSettingsFromHash() {
+      if (hasSettingsHash()) {
+        setSettingsOpen(true);
+      }
+    }
+
+    openSettingsFromHash();
+    window.addEventListener("hashchange", openSettingsFromHash);
+    window.addEventListener("open-account-settings", openSettingsFromHash);
+
+    return () => {
+      window.removeEventListener("hashchange", openSettingsFromHash);
+      window.removeEventListener("open-account-settings", openSettingsFromHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      !loading &&
+      typeof window !== "undefined" &&
+      decodeURIComponent(window.location.hash || "").toLowerCase() ===
+        "#nustatymai"
+    ) {
+      setSettingsOpen(true);
+    }
+  }, [loading]);
+
+  function openSettingsModal() {
+    setSettingsError("");
+    setSettingsSuccess("");
+    setDeleteConfirmText("");
+    setSettingsOpen(true);
+
+    if (
+      typeof window !== "undefined" &&
+      decodeURIComponent(window.location.hash || "").toLowerCase() !==
+        "#nustatymai"
+    ) {
+      history.replaceState(null, "", `${window.location.pathname}#nustatymai`);
+    }
+  }
+
+  function closeSettingsModal() {
+    if (settingsSaving || settingsDeleting) return;
+    setSettingsOpen(false);
+    setSettingsError("");
+    setSettingsSuccess("");
+    setDeleteConfirmText("");
+
+    if (window.location.hash === "#nustatymai") {
+      history.replaceState(null, "", window.location.pathname);
+    }
+  }
+
+  function updateSettingsForm(field, value) {
+    setSettingsForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setSettingsError("");
+    setSettingsSuccess("");
+  }
+
+  async function handleSaveSettings(event) {
+    event.preventDefault();
+
+    const email = settingsForm.email.trim();
+    const phone = settingsForm.phone.trim();
+
+    if (!email) {
+      setSettingsError("Įveskite el. pašto adresą.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setSettingsError("Įveskite taisyklingą el. pašto adresą.");
+      return;
+    }
+
+    setSettingsSaving(true);
+    setSettingsError("");
+    setSettingsSuccess("");
+
+    try {
+      const { error: userUpdateError } = await supabase
+        .from("users")
+        .update({
+          email,
+          phone: phone || null,
+        })
+        .eq("id", currentUserId);
+
+      if (userUpdateError) throw userUpdateError;
+
+      const [venueUpdate, providerUpdate] = await Promise.all([
+        supabase
+          .from("venues")
+          .update({ email, phone: phone || null })
+          .eq("owner_id", currentUserId),
+        supabase
+          .from("service_providers")
+          .update({ email, phone: phone || null })
+          .eq("owner_id", currentUserId),
+      ]);
+
+      if (venueUpdate.error) throw venueUpdate.error;
+      if (providerUpdate.error) throw providerUpdate.error;
+
+      if (email !== currentUserEmail) {
+        const emailUpdate = await supabase.auth.updateUser({ email });
+
+        if (emailUpdate.error) throw emailUpdate.error;
+
+        setCurrentUserEmail(email);
+        setSettingsSuccess(
+          "Kontaktiniai duomenys išsaugoti. El. pašto pakeitimą gali reikėti patvirtinti gautame laiške.",
+        );
+      } else {
+        setSettingsSuccess("Kontaktiniai duomenys išsaugoti.");
+      }
+    } catch (error) {
+      console.error("save partner settings error:", error);
+      setSettingsError("Nepavyko išsaugoti kontaktinių duomenų.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText.trim().toUpperCase() !== "IŠTRINTI") {
+      return;
+    }
+
+    const ok = confirm(
+      "Ar tikrai norite visam laikui ištrinti savo partnerio paskyrą?",
+    );
+
+    if (!ok) return;
+
+    setSettingsDeleting(true);
+    setSettingsError("");
+
+    try {
+      const { error } = await supabase.rpc("delete_own_partner_account");
+
+      if (error) throw error;
+
+      await supabase.auth.signOut();
+      router.replace("/");
+    } catch (error) {
+      console.error("delete partner account error:", error);
+      setSettingsError(
+        error?.message
+          ? `Nepavyko ištrinti paskyros. ${error.message}`
+          : "Nepavyko ištrinti paskyros. Patikrinkite, ar duomenų bazėje pritaikyta partnerio paskyros trynimo migracija.",
+      );
+    } finally {
+      setSettingsDeleting(false);
+    }
+  }
+
   if (loading) {
     return <Loader />;
   }
 
   return (
     <main className="mx-auto max-w-[1200px] px-[16px] py-[40px]">
-      <div className="mb-[28px]">
-        <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-          Partnerio zona
-        </p>
-        <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-          Partnerio valdymas
-        </h1>
-        <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Čia valdysite savo erdves, paslaugas ir rezervacijų užklausas.
-        </p>
+      <div className="mb-[28px] flex flex-col gap-[14px] md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+            Partnerio zona
+          </p>
+          <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
+            Partnerio valdymas
+          </h1>
+          <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
+            Čia valdysite savo erdves, paslaugas ir rezervacijų užklausas.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={openSettingsModal}
+          className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
+        >
+          Nustatymai
+        </button>
       </div>
 
       {errorMsg && (
@@ -532,6 +876,21 @@ export default function PartnerPage() {
           </div>
         </article>
       </section>
+
+      <PartnerSettingsModal
+        open={settingsOpen}
+        form={settingsForm}
+        saving={settingsSaving}
+        deleting={settingsDeleting}
+        error={settingsError}
+        success={settingsSuccess}
+        deleteConfirmText={deleteConfirmText}
+        onClose={closeSettingsModal}
+        onChange={updateSettingsForm}
+        onSubmit={handleSaveSettings}
+        onDelete={handleDeleteAccount}
+        onDeleteConfirmChange={setDeleteConfirmText}
+      />
     </main>
   );
 }

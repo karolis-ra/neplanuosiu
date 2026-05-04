@@ -905,19 +905,37 @@ export default function AccountPage() {
   }, [router]);
 
   useEffect(() => {
+    function hasSettingsHash() {
+      return decodeURIComponent(window.location.hash || "").toLowerCase() ===
+        "#nustatymai";
+    }
+
     function openSettingsFromHash() {
-      if (window.location.hash === "#nustatymai") {
+      if (hasSettingsHash()) {
         setSettingsOpen(true);
       }
     }
 
     openSettingsFromHash();
     window.addEventListener("hashchange", openSettingsFromHash);
+    window.addEventListener("open-account-settings", openSettingsFromHash);
 
     return () => {
       window.removeEventListener("hashchange", openSettingsFromHash);
+      window.removeEventListener("open-account-settings", openSettingsFromHash);
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !loading &&
+      typeof window !== "undefined" &&
+      decodeURIComponent(window.location.hash || "").toLowerCase() ===
+        "#nustatymai"
+    ) {
+      setSettingsOpen(true);
+    }
+  }, [loading]);
 
   const groupedBookings = useMemo(() => {
     return bookings.reduce(
@@ -1037,6 +1055,14 @@ export default function AccountPage() {
     setSettingsSuccess("");
     setDeleteConfirmText("");
     setSettingsOpen(true);
+
+    if (
+      typeof window !== "undefined" &&
+      decodeURIComponent(window.location.hash || "").toLowerCase() !==
+        "#nustatymai"
+    ) {
+      history.replaceState(null, "", `${window.location.pathname}#nustatymai`);
+    }
   }
 
   function closeSettingsModal() {

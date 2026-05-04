@@ -1075,7 +1075,7 @@ export default function AdminPage() {
     if (error) {
       console.error(message, error);
     }
-    setErrorMsg(message);
+    setErrorMsg(error?.message ? `${message} ${error.message}` : message);
     setSuccessMsg("");
   }
 
