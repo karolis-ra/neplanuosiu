@@ -124,12 +124,12 @@ export default function ServiceProviderOnboardingPage() {
     setErrorMsg("");
 
     if (!name.trim()) {
-      setErrorMsg("Iveskite paslaugu profilio pavadinima.");
+      setErrorMsg("Įveskite paslaugų profilio pavadinimą.");
       return;
     }
 
     if (!city.trim()) {
-      setErrorMsg("Iveskite miesta.");
+      setErrorMsg("Įveskite miestą.");
       return;
     }
 
@@ -195,7 +195,7 @@ export default function ServiceProviderOnboardingPage() {
 
       setErrorMsg(
         e?.message ||
-          "Nepavyko sukurti paslaugu profilio. Bandykite dar karta.",
+          "Nepavyko sukurti paslaugų profilio. Bandykite dar kartą.",
       );
     } finally {
       setSubmitting(false);
@@ -210,14 +210,14 @@ export default function ServiceProviderOnboardingPage() {
     <main className="mx-auto max-w-[900px] px-[16px] py-[40px]">
       <div className="mb-[24px]">
         <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-          Paslaugu teikejo onboarding
+          Paslaugų teikėjo kūrimas
         </p>
         <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-          Sukurkite paslaugu profili
+          Sukurkite paslaugų profilį
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Uzpildykite pagrindine informacija apie save arba savo veikla. Kitame
-          zingsnyje pridesime pirma paslauga.
+          Užpildykite pagrindinę informaciją apie save arba savo veiklą. Kitame
+          žingsnyje pridėsime pirmą paslaugą.
         </p>
       </div>
 
@@ -244,7 +244,7 @@ export default function ServiceProviderOnboardingPage() {
 
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Aprasymas
+              Aprašymas
             </label>
             <textarea
               value={description}
@@ -314,7 +314,7 @@ export default function ServiceProviderOnboardingPage() {
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Svetaine
+                Svetainė
               </label>
               <input
                 type="text"

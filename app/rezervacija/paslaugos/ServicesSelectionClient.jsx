@@ -18,6 +18,17 @@ function formatPrice(value) {
   return `${Number(value || 0).toFixed(2)} €`;
 }
 
+function formatServicePriceLabel(service) {
+  const price = formatPrice(service.price_per_unit);
+  const duration = Number(service.duration_minutes || 0);
+
+  if (duration > 0) {
+    return `${price} / ${duration} min.`;
+  }
+
+  return `${price} / paslaugą`;
+}
+
 function getWeekdayFromDateString(dateStr) {
   return new Date(dateStr).getDay();
 }
@@ -66,7 +77,7 @@ function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
       />
 
       <div className="p-[16px]">
-        <div className="mb-[10px] flex items-start justify-between gap-[12px]">
+        <div className="mb-[12px] flex items-start justify-between gap-[12px]">
           <div>
             <p className="ui-font text-[16px] font-semibold text-slate-900">
               {item.name}
@@ -76,18 +87,8 @@ function ServiceCard({ item, isSelected, onSelect, onOpenDetails }) {
             </p>
           </div>
 
-          <span className="ui-font whitespace-nowrap rounded-full bg-amber-50 px-[10px] py-[5px] text-[12px] font-semibold text-amber-700">
-            {formatPrice(item.price_per_unit)}
-          </span>
-        </div>
-
-        <div className="mb-[10px] flex flex-wrap gap-[8px]">
-          <span className="ui-font rounded-full bg-slate-100 px-[10px] py-[5px] text-[12px] text-slate-600">
-            {item.__originLabel}
-          </span>
-
-          <span className="ui-font rounded-full bg-slate-100 px-[10px] py-[5px] text-[12px] text-slate-600">
-            Matavimo vienetas: {item.units_of_measure || "unit"}
+          <span className="ui-font whitespace-nowrap rounded-full bg-amber-50 px-[12px] py-[6px] text-[15px] font-semibold leading-none text-amber-700">
+            {formatServicePriceLabel(item)}
           </span>
         </div>
 

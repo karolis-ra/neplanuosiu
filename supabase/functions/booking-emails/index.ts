@@ -176,16 +176,12 @@ function bookingSummaryRows(booking: any) {
     <p><strong>Rezervacijos Nr.:</strong> ${escapeHtml(
       booking.reservation_code || "-",
     )}</p>
-    <p><strong>Kambarys:</strong> ${escapeHtml(
-      booking.room?.name || "-",
-    )}</p>
+    <p><strong>Kambarys:</strong> ${escapeHtml(booking.room?.name || "-")}</p>
     <p><strong>Data:</strong> ${escapeHtml(booking.event_date || "-")}</p>
     <p><strong>Laikas:</strong> ${escapeHtml(
       formatTimeRange(booking.start_time, booking.end_time),
     )}</p>
-    <p><strong>Klientas:</strong> ${escapeHtml(
-      booking.guest_name || "-",
-    )}</p>
+    <p><strong>Klientas:</strong> ${escapeHtml(booking.guest_name || "-")}</p>
   `;
 }
 
@@ -216,7 +212,8 @@ async function notifyPartnersAboutBooking(bookingId: string) {
   });
 
   const link = `${appUrl}/partner/rezervacijos`;
-  const subject = `Nauja rezervacijos užklausa ${booking.reservation_code || ""}`.trim();
+  const subject =
+    `Nauja rezervacijos užklausa ${booking.reservation_code || ""}`.trim();
   const html = `
     <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.5">
       <h2>Nauja rezervacijos užklausa</h2>
@@ -224,7 +221,7 @@ async function notifyPartnersAboutBooking(bookingId: string) {
       ${bookingSummaryRows(booking)}
       <p>
         <a href="${link}" style="display:inline-block;background:#432c69;color:#fff;text-decoration:none;padding:12px 18px;border-radius:14px">
-          Peržiūrėti rezervacijas
+          Peržiūrėti rezervacijąs
         </a>
       </p>
     </div>

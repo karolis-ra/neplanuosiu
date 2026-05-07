@@ -196,7 +196,7 @@ export default function FirstServiceOnboardingPage() {
     setErrorMsg("");
 
     if (!name.trim()) {
-      setErrorMsg("Iveskite paslaugos pavadinima.");
+      setErrorMsg("Įveskite paslaugos pavadinimą.");
       return;
     }
 
@@ -206,7 +206,7 @@ export default function FirstServiceOnboardingPage() {
     }
 
     if (pricePerUnit === "" || Number(pricePerUnit) < 0) {
-      setErrorMsg("Iveskite teisinga kaina.");
+      setErrorMsg("Įveskite teisingą kainą.");
       return;
     }
 
@@ -216,7 +216,7 @@ export default function FirstServiceOnboardingPage() {
     }
 
     if (!openTime || !closeTime || openTime >= closeTime) {
-      setErrorMsg("Nurodykite teisinga paslaugu laika.");
+      setErrorMsg("Nurodykite teisingą paslaugų laiką.");
       return;
     }
 
@@ -318,7 +318,7 @@ export default function FirstServiceOnboardingPage() {
 
         if (serviceImagesError) {
           throw createStepError(
-            "Nepavyko išsaugoti paslaugos nuotrauku irasu",
+            "Nepavyko išsaugoti paslaugos nuotraukų įrašų",
             serviceImagesError,
           );
         }
@@ -346,7 +346,7 @@ export default function FirstServiceOnboardingPage() {
       await supabase.from("services").delete().eq("id", serviceId);
 
       setErrorMsg(
-        getReadableError(e, "Nepavyko sukurti paslaugos. Bandykite dar karta."),
+        getReadableError(e, "Nepavyko sukurti paslaugos. Bandykite dar kartą."),
       );
     } finally {
       setSubmitting(false);
@@ -361,13 +361,13 @@ export default function FirstServiceOnboardingPage() {
     <main className="mx-auto max-w-[980px] px-[16px] py-[40px]">
       <div className="mb-[24px]">
         <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-          Paslaugu teikejo onboarding
+          Paslaugų teikėjo kūrimas
         </p>
         <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-          Pridekite pirma paslauga
+          Pridėkite pirmą paslaugą
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Sukurkite pirma pasiulyma su kaina, darbo laiku ir nuotraukomis, kad
+          Sukurkite pirmą pasiūlymą su kaina, darbo laiku ir nuotraukomis, kad
           ji butu galima rodyti rezervacijos sraute.
         </p>
         {provider && (
@@ -413,7 +413,7 @@ export default function FirstServiceOnboardingPage() {
 
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Trukme minutemis
+                Trukmė minutemis
               </label>
               <input
                 type="number"
@@ -445,7 +445,7 @@ export default function FirstServiceOnboardingPage() {
 
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Kainos vienetas
+                Kaina už
               </label>
               <SelectControl
                 value={unitsOfMeasure}
@@ -458,7 +458,7 @@ export default function FirstServiceOnboardingPage() {
 
           <div className="rounded-[18px] bg-slate-50 p-[14px]">
             <p className="ui-font mb-[12px] text-[14px] font-semibold text-slate-800">
-              Paslaugu laisvumas
+              Darbo laikas
             </p>
 
             <div className="flex flex-wrap gap-[10px]">
@@ -497,14 +497,12 @@ export default function FirstServiceOnboardingPage() {
               />
             </div>
 
-            <p className="ui-font mt-[10px] text-[12px] leading-[20px] text-slate-500">
-              Sis grafikas taikomas visoms sio teikejo paslaugoms.
-            </p>
+            <p className="ui-font mt-[10px] text-[12px] leading-[20px] text-slate-500"></p>
           </div>
 
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Trumpas aprasymas
+              Trumpas aprašymas
             </label>
             <textarea
               value={shortDescription}
@@ -517,14 +515,14 @@ export default function FirstServiceOnboardingPage() {
 
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Pilnas aprasymas
+              Pilnas aprašymas
             </label>
             <textarea
               value={fullDescription}
               onChange={(e) => setFullDescription(e.target.value)}
               rows={5}
               className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
-              placeholder="Detalesnis paslaugos aprasymas."
+              placeholder="Detalesnis paslaugos aprašymas."
             />
           </div>
 
@@ -607,7 +605,7 @@ export default function FirstServiceOnboardingPage() {
             disabled={submitting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {submitting ? "Saugoma..." : "Sukurti pirma paslauga"}
+            {submitting ? "Saugoma..." : "Sukurti pirmą paslaugą"}
           </button>
         </form>
       </section>

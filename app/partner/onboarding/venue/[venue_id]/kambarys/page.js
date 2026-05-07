@@ -162,7 +162,7 @@ export default function VenueRoomOnboardingPage() {
     }
 
     if (extraHourPrice === "" || Number(extraHourPrice) < 0) {
-      setErrorMsg("Nurodykite teisinga papildomos valandos kaina.");
+      setErrorMsg("Nurodykite teisingą papildomos valandos kainą.");
       return;
     }
 
@@ -328,7 +328,7 @@ export default function VenueRoomOnboardingPage() {
     <main className="mx-auto max-w-[980px] px-[16px] py-[40px]">
       <div className="mb-[24px]">
         <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-          Venue owner onboarding
+          Žaidimų erdvės kūrimas
         </p>
         <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
           Pridėkite pirmą kambarį

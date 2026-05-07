@@ -84,7 +84,9 @@ export default function FavoriteButton({ roomId, initialIsFavorite, onToggle }) 
       type="button"
       onClick={handleClick}
       disabled={loading || isInitialStateLoading}
-      aria-label={isFavorite ? "Pasalinti is pamegtu" : "Prideti prie pamegtu"}
+      aria-label={
+        isFavorite ? "Pašalinti iš pamėgtų" : "Pridėti prie pamėgtų"
+      }
       className={`absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition
         ${
           isInitialStateLoading

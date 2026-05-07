@@ -152,12 +152,14 @@ export default async function SearchPage({
 
   return (
     <div className="mx-auto mt-6 max-w-6xl px-4 pb-10">
-      <SearchFilters
-        initialCity={miestas}
-        initialDate={data}
-        initialTime={laikas}
-        initialPeople={searchParams?.zmones || ""}
-      />
+      <div className="sticky top-[64px] z-40 -mx-4 bg-slate-50/95 px-4 py-3 backdrop-blur">
+        <SearchFilters
+          initialCity={miestas}
+          initialDate={data}
+          initialTime={laikas}
+          initialPeople={searchParams?.zmones || ""}
+        />
+      </div>
 
       <SearchMapSection rooms={mapVenues} selectedCity={miestas} />
 

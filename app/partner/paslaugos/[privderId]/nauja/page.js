@@ -197,7 +197,7 @@ export default function CreateServicePage() {
     setErrorMsg("");
 
     if (!name.trim()) {
-      setErrorMsg("Iveskite paslaugos pavadinima.");
+      setErrorMsg("Įveskite paslaugos pavadinimą.");
       return;
     }
 
@@ -207,12 +207,12 @@ export default function CreateServicePage() {
     }
 
     if (pricePerUnit === "" || Number(pricePerUnit) < 0) {
-      setErrorMsg("Iveskite teisinga kaina.");
+      setErrorMsg("Įveskite teisingą kainą.");
       return;
     }
 
     if (durationMinutes && Number(durationMinutes) < 0) {
-      setErrorMsg("Trukme negali buti neigiama.");
+      setErrorMsg("Trukmė negali buti neigiama.");
       return;
     }
 
@@ -222,7 +222,7 @@ export default function CreateServicePage() {
     }
 
     if (!openTime || !closeTime || openTime >= closeTime) {
-      setErrorMsg("Nurodykite teisinga paslaugu laika.");
+      setErrorMsg("Nurodykite teisingą paslaugų laiką.");
       return;
     }
 
@@ -324,7 +324,7 @@ export default function CreateServicePage() {
 
         if (serviceImagesError) {
           throw createStepError(
-            "Nepavyko išsaugoti paslaugos nuotrauku irasu",
+            "Nepavyko išsaugoti paslaugos nuotraukų įrašų",
             serviceImagesError,
           );
         }
@@ -352,7 +352,7 @@ export default function CreateServicePage() {
       await supabase.from("services").delete().eq("id", serviceId);
 
       setErrorMsg(
-        getReadableError(e, "Nepavyko sukurti paslaugos. Bandykite dar karta."),
+        getReadableError(e, "Nepavyko sukurti paslaugos. Bandykite dar kartą."),
       );
     } finally {
       setSubmitting(false);
@@ -370,11 +370,11 @@ export default function CreateServicePage() {
           Nauja paslauga
         </p>
         <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-          Sukurkite nauja paslauga
+          Sukurkite naują paslaugą
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Uzpildykite pagrindine informacija, darbo laika ir nuotraukas taip,
-          kad paslauga galetu buti suderinta su kambario rezervacijos laiku.
+          Užpildykite pagrindinę informaciją, darbo laiką ir nuotraukas taip,
+          kad paslauga galėtų būti suderinta su kambario rezervacijos laiku.
         </p>
         {provider && (
           <p className="mt-[8px] ui-font text-[14px] text-slate-500">
@@ -419,7 +419,7 @@ export default function CreateServicePage() {
 
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Trukme minutemis
+                Trukmė minutemis
               </label>
               <input
                 type="number"
@@ -451,7 +451,7 @@ export default function CreateServicePage() {
 
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Kainos vienetas
+                Kaina už
               </label>
               <SelectControl
                 value={unitsOfMeasure}
@@ -478,7 +478,7 @@ export default function CreateServicePage() {
 
           <div className="rounded-[18px] bg-slate-50 p-[14px]">
             <p className="ui-font mb-[12px] text-[14px] font-semibold text-slate-800">
-              Paslaugu laisvumas
+              Darbo laikas
             </p>
 
             <div className="flex flex-wrap gap-[10px]">
@@ -518,14 +518,14 @@ export default function CreateServicePage() {
             </div>
 
             <p className="ui-font mt-[10px] text-[12px] leading-[20px] text-slate-500">
-              Sis grafikas taikomas visoms sio paslaugu teikejo paslaugoms, nes
+              Šis grafikas taikomas visoms šio paslaugų teikėjo paslaugoms, nes
               rezervacijoje naudojamas bendras teikejo uzimtumas.
             </p>
           </div>
 
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Trumpas aprasymas
+              Trumpas aprašymas
             </label>
             <textarea
               value={shortDescription}
@@ -538,14 +538,14 @@ export default function CreateServicePage() {
 
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Pilnas aprasymas
+              Pilnas aprašymas
             </label>
             <textarea
               value={fullDescription}
               onChange={(e) => setFullDescription(e.target.value)}
               rows={5}
               className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
-              placeholder="Detalesnis paslaugos aprasymas."
+              placeholder="Detalesnis paslaugos aprašymas."
             />
           </div>
 
@@ -637,7 +637,7 @@ export default function CreateServicePage() {
               disabled={submitting}
               className="ui-font inline-flex h-[50px] flex-1 items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {submitting ? "Saugoma..." : "Sukurti paslauga"}
+              {submitting ? "Saugoma..." : "Sukurti paslaugą"}
             </button>
           </div>
         </form>

@@ -190,7 +190,7 @@ export default function AccountTypePage() {
                 {item.title}
               </h2>
 
-              <p className="mt-[12px] ui-font text-[14px] leading-[22px] text-slate-600">
+              <p className="mt-[12px] mb-[22px] ui-font text-[14px] leading-[22px] text-slate-600">
                 {item.description}
               </p>
 

@@ -262,7 +262,7 @@ export default function ReservationClient() {
     }
 
     if (!room?.venue_id) {
-      setError("Nepavyko nustatyti venue informacijos.");
+      setError("Nepavyko nustatyti žaidimų erdvės informacijos.");
       return;
     }
 

@@ -113,17 +113,17 @@ export default function VenueOnboardingPage() {
     setErrorMsg("");
 
     if (!name.trim()) {
-      setErrorMsg("Iveskite venue pavadinima.");
+      setErrorMsg("Įveskite žaidimų erdvės pavadinimą.");
       return;
     }
 
     if (!city.trim()) {
-      setErrorMsg("Iveskite miesta.");
+      setErrorMsg("Įveskite miestą.");
       return;
     }
 
     if (!coverFile) {
-      setErrorMsg("Pridekite venue viršelio nuotrauka.");
+      setErrorMsg("Pridėkite žaidimų erdvės viršelio nuotrauką.");
       return;
     }
 
@@ -218,7 +218,9 @@ export default function VenueOnboardingPage() {
         await supabase.from("venues").delete().eq("id", createdVenueId);
       }
 
-      setErrorMsg("Nepavyko sukurti venue. Bandykite dar karta.");
+      setErrorMsg(
+        "Nepavyko sukurti žaidimų erdvės profilio. Bandykite dar kartą.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -232,15 +234,15 @@ export default function VenueOnboardingPage() {
     <main className="mx-auto max-w-[900px] px-[16px] py-[40px]">
       <div className="mb-[24px]">
         <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-          Venue owner onboarding
+          Žaidimų erdvės kūrimas
         </p>
         <h1 className="mt-[8px] ui-font text-[32px] font-semibold text-slate-900">
-          Sukurkite savo venue profili
+          Sukurkite žaidimų erdvės profilį
         </h1>
         <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-          Pirmiausia uzpildykite pagrindine informacija apie savo vieta ir
-          pridekite viršelio nuotrauką. Kitame zingsnyje pridesime pirma
-          kambari.
+          Pirmiausia užpildykite pagrindinę informaciją apie savo žaidimų
+          erdvę ir pridėkite viršelio nuotrauką. Kitame žingsnyje pridėsime
+          pirmą kambarį.
         </p>
       </div>
 
@@ -254,27 +256,27 @@ export default function VenueOnboardingPage() {
         <form onSubmit={handleSubmit} className="space-y-[16px]">
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Venue pavadinimas
+              Žaidimų erdvės pavadinimas
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-              placeholder="Pvz. Smalsuciu sventes"
+              placeholder="Pvz. Smalsučių šventės"
             />
           </div>
 
           <div className="space-y-[6px]">
             <label className="ui-font text-[13px] text-slate-600">
-              Aprasymas
+              Aprašymas
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
-              placeholder="Trumpai aprasykite savo venue."
+              placeholder="Trumpai aprašykite savo žaidimų erdvę."
             />
           </div>
 
@@ -288,7 +290,7 @@ export default function VenueOnboardingPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
-                placeholder="Gatve, numeris"
+                placeholder="Gatvė, numeris"
               />
             </div>
 
@@ -337,7 +339,7 @@ export default function VenueOnboardingPage() {
           <div className="grid gap-[12px] md:grid-cols-2">
             <div className="space-y-[6px]">
               <label className="ui-font text-[13px] text-slate-600">
-                Svetaine
+                Svetainė
               </label>
               <input
                 type="text"
@@ -452,7 +454,7 @@ export default function VenueOnboardingPage() {
               <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50">
                 <Image
                   src={coverPreviewUrl}
-                  alt="Venue cover"
+                  alt="Žaidimų erdvės viršelis"
                   width={960}
                   height={540}
                   unoptimized
@@ -467,7 +469,7 @@ export default function VenueOnboardingPage() {
             disabled={submitting}
             className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {submitting ? "Saugoma..." : "Tęsti ir pridėti kambari"}
+            {submitting ? "Saugoma..." : "Tęsti ir pridėti kambarį"}
           </button>
         </form>
       </section>

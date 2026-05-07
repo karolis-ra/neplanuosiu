@@ -839,7 +839,7 @@ export default function PartnerReservationsPage() {
       } catch (error) {
         console.error("partner reservations load error:", error);
         if (isMounted) {
-          setErrorMsg("Nepavyko uzkrauti rezervaciju uzklausu.");
+          setErrorMsg("Nepavyko užkrauti rezervacijų užklausų.");
         }
       } finally {
         if (isMounted) {
@@ -1080,7 +1080,7 @@ export default function PartnerReservationsPage() {
             </p>
             {venue && (
               <p className="mt-[8px] ui-font text-[14px] text-slate-500">
-                Erdve: <span className="font-semibold">{venue.name}</span>
+                Erdvė: <span className="font-semibold">{venue.name}</span>
               </p>
             )}
             {provider && (
@@ -1233,7 +1233,7 @@ export default function PartnerReservationsPage() {
                             onClick={() => setActiveOrderId(order.id)}
                             className="ui-font mt-[12px] inline-flex h-[48px] w-full items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
                           >
-                            Peržiūrėti rezervacija
+                            Peržiūrėti rezervaciją
                           </button>
                         </div>
                       </div>
@@ -1379,7 +1379,7 @@ export default function PartnerReservationsPage() {
                           onClick={() => setActiveOrderId(order.id)}
                           className="ui-font inline-flex h-[44px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
-                          Peržiūrėti rezervacija
+                          Peržiūrėti rezervaciją
                         </button>
                       </div>
                     </article>

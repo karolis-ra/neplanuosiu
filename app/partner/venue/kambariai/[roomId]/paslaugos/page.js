@@ -194,7 +194,7 @@ export default function RoomServicesManagePage() {
       } catch (error) {
         console.error("load room services error:", error);
         if (isMounted) {
-          setErrorMsg("Nepavyko uzkrauti kambario paslaugu.");
+          setErrorMsg("Nepavyko užkrauti kambario paslaugų.");
         }
       } finally {
         if (isMounted) {
@@ -359,7 +359,7 @@ export default function RoomServicesManagePage() {
       setErrorMsg(
         provider?.id
           ? "Nepavyko išsaugoti kambario paslaugos."
-          : "Norint kurti kambario paslaugas, pirma reikia susikurti paslaugu teikejo profili.",
+          : "Norint kurti kambario paslaugas, pirmiausia reikia susikurti paslaugų teikėjo profilį.",
       );
     } finally {
       setSaving(false);
@@ -437,7 +437,7 @@ export default function RoomServicesManagePage() {
       {!provider && (
         <div className="mb-[20px] rounded-[20px] border border-amber-200 bg-amber-50 px-[16px] py-[14px]">
           <p className="ui-font text-[14px] leading-[22px] text-amber-800">
-            Kambario paslaugoms reikia paslaugu teikejo profilio, nes pagal
+            Kambario paslaugoms reikia paslaugų teikėjo profilio, nes pagal
             dabartine duomenu baze kiekviena paslauga priklauso provideriui.
           </p>
           <button
@@ -445,7 +445,7 @@ export default function RoomServicesManagePage() {
             onClick={() => router.push("/partner/onboarding/paslaugos")}
             className="ui-font mt-[12px] inline-flex h-[42px] items-center justify-center rounded-[14px] bg-primary px-[16px] text-[14px] font-semibold text-white"
           >
-            Sukurti paslaugu profili
+            Sukurti paslaugų profilį
           </button>
         </div>
       )}
@@ -458,7 +458,7 @@ export default function RoomServicesManagePage() {
 
           {services.length === 0 ? (
             <p className="ui-font mt-[14px] text-[14px] text-slate-500">
-              Siam kambariui paslaugu dar nera.
+              Šiam kambariui paslaugų dar nėra.
             </p>
           ) : (
             <div className="mt-[16px] space-y-[12px]">
@@ -596,7 +596,7 @@ export default function RoomServicesManagePage() {
                   onChange={(e) =>
                     updateForm("durationMinutes", e.target.value)
                   }
-                  placeholder="Trukme minutemis"
+                  placeholder="Trukmė minutemis"
                   className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
                 />
               )}
@@ -606,7 +606,7 @@ export default function RoomServicesManagePage() {
               value={form.shortDescription}
               onChange={(e) => updateForm("shortDescription", e.target.value)}
               rows={3}
-              placeholder="Trumpas aprasymas"
+              placeholder="Trumpas aprašymas"
               className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
             />
 
@@ -614,7 +614,7 @@ export default function RoomServicesManagePage() {
               value={form.fullDescription}
               onChange={(e) => updateForm("fullDescription", e.target.value)}
               rows={4}
-              placeholder="Pilnas aprasymas"
+              placeholder="Pilnas aprašymas"
               className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
             />
 

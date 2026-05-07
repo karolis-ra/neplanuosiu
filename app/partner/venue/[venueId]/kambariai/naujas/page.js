@@ -153,7 +153,7 @@ export default function CreateRoomPage() {
     }
 
     if (extraHourPrice === "" || Number(extraHourPrice) < 0) {
-      setErrorMsg("Nurodykite teisinga papildomos valandos kaina.");
+      setErrorMsg("Nurodykite teisingą papildomos valandos kainą.");
       return;
     }
 

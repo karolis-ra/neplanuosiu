@@ -96,8 +96,8 @@ export default function BookingActionButtons({
         </p>
       ) : (
         <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
-          Galite pasirinkti papildomas paslaugas: dekoracijas, animatoriu ar
-          torta pagal pasirinkta rezervacijos laika.
+          Galite pasirinkti papildomas paslaugas: dekoracijas, animatorių ar
+          tortą pagal pasirinktą rezervacijos laiką.
         </p>
       )}
     </div>
