@@ -7,14 +7,14 @@ import Loader from "../components/Loader";
 
 function resolveRouteByRole(role, fallbackPath = "/account") {
   if (!role) {
-    return "/paskyros-tipas";
+    return "/prisijungti";
   }
 
   if (role === "client") {
     return fallbackPath === "/partner" ? "/account" : fallbackPath;
   }
 
-  if (role === "venue_owner" || role === "service_provider") {
+  if (role === "partner" || role === "venue_owner" || role === "service_provider") {
     return "/partner";
   }
 
@@ -39,29 +39,117 @@ function LoginPageContent() {
   const nextPath = useMemo(() => {
     return searchParams.get("next") || "/account";
   }, [searchParams]);
+  const isRegisterCallback = searchParams.get("mode") === "register";
 
   useEffect(() => {
     let isMounted = true;
 
-    async function redirectAuthenticatedUser(user) {
+    async function activatePartnerInvite(user, inviteToken) {
+      const { data: invite, error: inviteError } = await supabase
+        .from("partner_invites")
+        .select("id, email, status, expires_at")
+        .eq("token", inviteToken)
+        .maybeSingle();
+
+      if (inviteError) {
+        throw inviteError;
+      }
+
+      const inviteExpired =
+        invite?.expires_at && new Date(invite.expires_at).getTime() < Date.now();
+
+      if (!invite || invite.status !== "pending" || inviteExpired) {
+        throw new Error("Partnerio kvietimo nuoroda nebegalioja.");
+      }
+
+      if ((invite.email || "").toLowerCase() !== (user.email || "").toLowerCase()) {
+        throw new Error("Kvietimas skirtas kitam el. pašto adresui.");
+      }
+
+      const { error: upsertError } = await supabase.from("users").upsert(
+        {
+          id: user.id,
+          email: user.email || invite.email || null,
+          full_name: user.user_metadata?.full_name || null,
+          role: "partner",
+        },
+        { onConflict: "id" },
+      );
+
+      if (upsertError) {
+        throw upsertError;
+      }
+
+      const { error: inviteUpdateError } = await supabase
+        .from("partner_invites")
+        .update({
+          status: "accepted",
+          accepted_at: new Date().toISOString(),
+          accepted_user_id: user.id,
+        })
+        .eq("id", invite.id);
+
+      if (inviteUpdateError) {
+        throw inviteUpdateError;
+      }
+
+      return "partner";
+    }
+
+    async function ensureRegisteredUser(user) {
       if (!user?.id) return;
 
       const { data: userRow, error: userRowError } = await supabase
         .from("users")
-        .select("role")
+        .select("id, role")
         .eq("id", user.id)
         .maybeSingle();
 
       if (!isMounted) return;
 
       if (userRowError) {
-        console.error("users fetch after oauth error:", userRowError.message);
+        throw userRowError;
       }
 
-      const role = userRow?.role || null;
-      const targetPath = resolveRouteByRole(role, nextPath);
+      if (!userRow?.id || !userRow?.role) {
+        const inviteToken = user.user_metadata?.partner_invite_token;
 
-      router.replace(targetPath);
+        if (inviteToken) {
+          return activatePartnerInvite(user, inviteToken);
+        }
+
+        if (isRegisterCallback) {
+          const { error: upsertError } = await supabase.from("users").upsert(
+            {
+              id: user.id,
+              email: user.email || null,
+              full_name: user.user_metadata?.full_name || null,
+              role: "client",
+            },
+            { onConflict: "id" },
+          );
+
+          if (upsertError) {
+            throw upsertError;
+          }
+
+          return "client";
+        }
+
+        await supabase.auth.signOut();
+        setErrorMsg("Paskyra nerasta. Pirmiausia susikurkite paskyrą.");
+        setCheckingAuth(false);
+        return null;
+      }
+
+      return userRow.role;
+    }
+
+    async function redirectAuthenticatedUser(user) {
+      const role = await ensureRegisteredUser(user);
+      if (!isMounted || !role) return;
+
+      router.replace(resolveRouteByRole(role, nextPath));
     }
 
     async function setSessionFromUrlHash() {
@@ -124,6 +212,8 @@ function LoginPageContent() {
       .catch((error) => {
         console.error("oauth return handling error:", error);
         if (isMounted) {
+          supabase.auth.signOut();
+          setErrorMsg(error?.message || "Nepavyko užbaigti registracijos.");
           setCheckingAuth(false);
         }
       });
@@ -145,7 +235,7 @@ function LoginPageContent() {
       isMounted = false;
       listener.subscription.unsubscribe();
     };
-  }, [router, nextPath]);
+  }, [router, nextPath, isRegisterCallback]);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -167,24 +257,32 @@ function LoginPageContent() {
     const user = data?.user;
 
     if (!user) {
-      router.push("/account");
+      setErrorMsg("Nepavyko patikrinti paskyros.");
       return;
     }
 
     const { data: userRow, error: userRowError } = await supabase
       .from("users")
-      .select("role")
+      .select("id, role")
       .eq("id", user.id)
       .maybeSingle();
 
+    setLoading(false);
+
     if (userRowError) {
       console.error("users fetch after login error:", userRowError.message);
+      await supabase.auth.signOut();
+      setErrorMsg("Nepavyko patikrinti paskyros.");
+      return;
     }
 
-    const role = userRow?.role || null;
-    const targetPath = resolveRouteByRole(role, nextPath);
+    if (!userRow?.id || !userRow?.role) {
+      await supabase.auth.signOut();
+      setErrorMsg("Paskyra nerasta. Pirmiausia susikurkite paskyrą.");
+      return;
+    }
 
-    router.push(targetPath);
+    router.push(resolveRouteByRole(userRow.role, nextPath));
   }
 
   async function handleGoogleLogin() {
@@ -246,7 +344,7 @@ function LoginPageContent() {
 
         {errorMsg && (
           <p className="ui-font text-xs text-red-600">
-            Neteisingi prisijungimo duomenys.
+            {errorMsg}
           </p>
         )}
 

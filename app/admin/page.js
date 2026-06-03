@@ -9,8 +9,9 @@ import { notifyBookingDecision } from "../lib/emailNotifications";
 
 const ROLE_OPTIONS = [
   { value: "client", label: "Klientas" },
-  { value: "venue_owner", label: "Žaidimų erdvės partneris" },
-  { value: "service_provider", label: "Paslaugos teikėjas" },
+  { value: "partner", label: "Partneris" },
+  { value: "venue_owner", label: "Partneris (senas tipas: erdvė)" },
+  { value: "service_provider", label: "Partneris (senas tipas: paslaugos)" },
   { value: "admin", label: "Administratorius" },
 ];
 
@@ -108,6 +109,20 @@ function serviceMatchesSearch(service, searchValue) {
     service?.name,
     service?.provider?.name,
     getServiceTypeLabel(service?.service_type),
+  ].some((field) => normalizeSearchValue(field).includes(query));
+}
+
+function partnerRequestMatchesSearch(request, searchValue) {
+  const query = normalizeSearchValue(searchValue);
+  if (!query) return true;
+
+  return [
+    request?.business_name,
+    request?.contact_name,
+    request?.email,
+    request?.phone,
+    request?.city,
+    request?.status,
   ].some((field) => normalizeSearchValue(field).includes(query));
 }
 
@@ -840,10 +855,13 @@ export default function AdminPage() {
   const [venues, setVenues] = useState([]);
   const [providers, setProviders] = useState([]);
   const [services, setServices] = useState([]);
+  const [partnerRequests, setPartnerRequests] = useState([]);
   const [activeBookingId, setActiveBookingId] = useState("");
   const [reservationSearch, setReservationSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [partnerSearch, setPartnerSearch] = useState("");
+  const [requestSearch, setRequestSearch] = useState("");
+  const [generatedInviteLinks, setGeneratedInviteLinks] = useState({});
   const [editingEntity, setEditingEntity] = useState(null);
 
   useEffect(() => {
@@ -880,14 +898,24 @@ export default function AdminPage() {
         }
 
         if (userRow?.role !== "admin") {
-          router.replace(userRow?.role === "client" ? "/account" : "/partner");
+          const isPartnerRole =
+            userRow?.role === "partner" ||
+            userRow?.role === "venue_owner" ||
+            userRow?.role === "service_provider";
+          router.replace(isPartnerRole ? "/partner" : "/account");
           return;
         }
 
         setCurrentAdmin(userRow);
 
-        const [usersRes, bookingsRes, venuesRes, providersRes, servicesRes] =
-          await Promise.all([
+        const [
+          usersRes,
+          bookingsRes,
+          venuesRes,
+          providersRes,
+          servicesRes,
+          partnerRequestsRes,
+        ] = await Promise.all([
             supabase
               .from("users")
               .select("id, email, full_name, role")
@@ -983,6 +1011,30 @@ export default function AdminPage() {
                 "id, name, service_type, price_per_unit, units_of_measure, is_listed, provider:service_providers(id, name)",
               )
               .order("name", { ascending: true }),
+            supabase
+              .from("partner_requests")
+              .select(
+                `
+                id,
+                contact_name,
+                email,
+                phone,
+                business_name,
+                city,
+                description,
+                website,
+                status,
+                created_at,
+                invited_at,
+                invite:partner_invites (
+                  token,
+                  status,
+                  expires_at,
+                  created_at
+                )
+              `,
+              )
+              .order("created_at", { ascending: false }),
           ]);
 
         if (!isMounted) return;
@@ -992,12 +1044,14 @@ export default function AdminPage() {
         if (venuesRes.error) throw venuesRes.error;
         if (providersRes.error) throw providersRes.error;
         if (servicesRes.error) throw servicesRes.error;
+        if (partnerRequestsRes.error) throw partnerRequestsRes.error;
 
         setUsers(usersRes.data || []);
         setBookings(bookingsRes.data || []);
         setVenues(venuesRes.data || []);
         setProviders(providersRes.data || []);
         setServices(servicesRes.data || []);
+        setPartnerRequests(partnerRequestsRes.data || []);
       } catch (error) {
         console.error("admin load error:", error);
         if (isMounted) {
@@ -1023,8 +1077,11 @@ export default function AdminPage() {
       bookings: bookings.length,
       pendingBookings: bookings.filter(hasPendingDecision).length,
       partners: venues.length + providers.length,
+      partnerRequests: partnerRequests.filter(
+        (request) => request.status === "pending",
+      ).length,
     }),
-    [bookings, providers.length, users.length, venues.length],
+    [bookings, partnerRequests, providers.length, users.length, venues.length],
   );
 
   const activeBooking = useMemo(
@@ -1066,6 +1123,14 @@ export default function AdminPage() {
     [partnerSearch, services],
   );
 
+  const filteredPartnerRequests = useMemo(
+    () =>
+      partnerRequests.filter((request) =>
+        partnerRequestMatchesSearch(request, requestSearch),
+      ),
+    [partnerRequests, requestSearch],
+  );
+
   function showSuccess(message) {
     setSuccessMsg(message);
     setErrorMsg("");
@@ -1077,6 +1142,72 @@ export default function AdminPage() {
     }
     setErrorMsg(error?.message ? `${message} ${error.message}` : message);
     setSuccessMsg("");
+  }
+
+  function getPartnerInviteLink(token) {
+    if (typeof window === "undefined" || !token) return "";
+    return `${window.location.origin}/partner/kvietimas/${token}`;
+  }
+
+  async function handleCreatePartnerInvite(request) {
+    setSavingKey(`partner-request:${request.id}`);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 14);
+
+      const { data: invite, error: inviteError } = await supabase
+        .from("partner_invites")
+        .insert({
+          request_id: request.id,
+          email: request.email,
+          token,
+          status: "pending",
+          expires_at: expiresAt.toISOString(),
+          created_by: currentAdmin?.id || null,
+        })
+        .select("token, status, expires_at, created_at")
+        .single();
+
+      if (inviteError) throw inviteError;
+
+      const { error: requestError } = await supabase
+        .from("partner_requests")
+        .update({
+          status: "invited",
+          invited_at: new Date().toISOString(),
+        })
+        .eq("id", request.id);
+
+      if (requestError) throw requestError;
+
+      const inviteLink = getPartnerInviteLink(invite.token);
+
+      setPartnerRequests((current) =>
+        current.map((item) =>
+          item.id === request.id
+            ? {
+                ...item,
+                status: "invited",
+                invited_at: new Date().toISOString(),
+                invite: [invite],
+              }
+            : item,
+        ),
+      );
+      setGeneratedInviteLinks((current) => ({
+        ...current,
+        [request.id]: inviteLink,
+      }));
+      showSuccess("Partnerio kvietimo nuoroda sugeneruota.");
+    } catch (error) {
+      showError("Nepavyko sugeneruoti partnerio kvietimo.", error);
+    } finally {
+      setSavingKey("");
+    }
   }
 
   function getDraftForEntity(type, item) {
@@ -1489,7 +1620,7 @@ export default function AdminPage() {
           ["Vartotojai", stats.users],
           ["Rezervacijos", stats.bookings],
           ["Laukia sprendimo", stats.pendingBookings],
-          ["Partnerių objektai", stats.partners],
+          ["Partnerių užklausos", stats.partnerRequests],
         ].map(([label, value]) => (
           <div
             key={label}
@@ -1507,6 +1638,7 @@ export default function AdminPage() {
         {[
           ["users", "Vartotojai"],
           ["bookings", "Rezervacijos"],
+          ["partnerRequests", "Partnerių užklausos"],
           ["partners", "Paslaugos ir partneriai"],
         ].map(([id, label]) => (
           <button
@@ -1709,6 +1841,114 @@ export default function AdminPage() {
                         </p>
                       </div>
                     ))}
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </section>
+      )}
+
+      {activeTab === "partnerRequests" && (
+        <section className="space-y-[14px]">
+          <div className="max-w-[420px]">
+            <label className="ui-font text-[12px] font-semibold text-slate-500">
+              Paieška pagal partnerio užklausą
+              <input
+                type="search"
+                value={requestSearch}
+                onChange={(event) => setRequestSearch(event.target.value)}
+                placeholder="Pavadinimas, kontaktas, el. paštas arba miestas"
+                className="mt-[6px] h-[42px] w-full rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] text-slate-800 outline-none transition focus:border-primary"
+              />
+            </label>
+          </div>
+
+          {filteredPartnerRequests.length === 0 ? (
+            <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-[28px] text-center">
+              <p className="ui-font text-[15px] text-slate-600">
+                Partnerių užklausų nerasta.
+              </p>
+            </div>
+          ) : (
+            filteredPartnerRequests.map((request) => {
+              const latestInvite = Array.isArray(request.invite)
+                ? request.invite[0]
+                : request.invite;
+              const inviteLink =
+                generatedInviteLinks[request.id] ||
+                getPartnerInviteLink(latestInvite?.token);
+              const mailSubject = encodeURIComponent(
+                "Neplanuosiu partnerio paskyros kvietimas",
+              );
+              const mailBody = encodeURIComponent(
+                `Sveiki,\n\nsiunčiame privačią nuorodą partnerio paskyrai susikurti:\n${inviteLink}\n\nNuoroda skirta tik jums.`,
+              );
+
+              return (
+                <article
+                  key={request.id}
+                  className="rounded-[24px] bg-white p-[18px] shadow-sm"
+                >
+                  <div className="flex flex-col gap-[14px] lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-[8px]">
+                      <div className="flex flex-wrap items-center gap-[10px]">
+                        <h2 className="ui-font text-[20px] font-semibold text-slate-900">
+                          {request.business_name || "Partnerio užklausa"}
+                        </h2>
+                        <span className="ui-font rounded-full bg-slate-100 px-[12px] py-[6px] text-[12px] font-semibold text-slate-600">
+                          {request.status || "pending"}
+                        </span>
+                      </div>
+                      <p className="ui-font text-[14px] text-slate-600">
+                        {request.contact_name || "-"} · {request.email || "-"}
+                        {request.phone ? ` · ${request.phone}` : ""}
+                      </p>
+                      <p className="ui-font text-[13px] text-slate-500">
+                        {request.city || "-"}
+                        {request.website ? ` · ${request.website}` : ""}
+                      </p>
+                      <p className="ui-font max-w-[760px] text-[14px] leading-[22px] text-slate-700">
+                        {request.description || "-"}
+                      </p>
+                      {inviteLink && (
+                        <div className="rounded-[16px] bg-slate-50 px-[14px] py-[12px]">
+                          <p className="ui-font text-[12px] font-semibold text-slate-500">
+                            Privati kvietimo nuoroda
+                          </p>
+                          <p className="mt-[4px] break-all ui-font text-[13px] font-semibold text-primary">
+                            {inviteLink}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex min-w-[240px] flex-col gap-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => handleCreatePartnerInvite(request)}
+                        disabled={
+                          savingKey === `partner-request:${request.id}` ||
+                          Boolean(inviteLink)
+                        }
+                        className="ui-font inline-flex h-[44px] items-center justify-center rounded-[14px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        {savingKey === `partner-request:${request.id}`
+                          ? "Generuojama..."
+                          : inviteLink
+                            ? "Kvietimas sukurtas"
+                            : "Generuoti kvietimą"}
+                      </button>
+
+                      {inviteLink && (
+                        <a
+                          href={`mailto:${request.email}?subject=${mailSubject}&body=${mailBody}`}
+                          className="ui-font inline-flex h-[44px] items-center justify-center rounded-[14px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Atidaryti laišką
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </article>
               );

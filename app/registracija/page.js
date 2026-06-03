@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 
+function isExistingAuthUser(user) {
+  return Array.isArray(user?.identities) && user.identities.length === 0;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -12,11 +16,14 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   async function handleRegister(e) {
     e.preventDefault();
     setErrorMsg("");
+    setSuccessMsg("");
     setLoading(true);
 
     try {
@@ -35,12 +42,30 @@ export default function RegisterPage() {
 
       const createdUser = data?.user;
 
+      if (isExistingAuthUser(createdUser)) {
+        const { error: resendError } = await supabase.auth.resend({
+          type: "signup",
+          email,
+        });
+
+        if (resendError) {
+          console.warn("signup confirmation resend warning:", resendError);
+        }
+
+        setPassword("");
+        setSuccessMsg(
+          "Paskyra su šiuo el. paštu jau yra sukurta. Jei ji dar nepatvirtinta, patvirtinimo laiškas išsiųstas dar kartą.",
+        );
+        return;
+      }
+
       if (createdUser?.id) {
         const { error: upsertError } = await supabase.from("users").upsert(
           {
             id: createdUser.id,
             email: createdUser.email || email || null,
             full_name: fullName || null,
+            role: "client",
           },
           { onConflict: "id" },
         );
@@ -53,7 +78,15 @@ export default function RegisterPage() {
         }
       }
 
-      router.push("/prisijungti?next=/paskyros-tipas");
+      if (!data?.session) {
+        setPassword("");
+        setSuccessMsg(
+          "Paskyra sukurta. Patikrinkite el. paštą ir paspauskite Supabase atsiųstą patvirtinimo nuorodą.",
+        );
+        return;
+      }
+
+      router.push("/prisijungti?next=/account");
     } catch (e) {
       console.error("register error:", e);
       setErrorMsg("Nepavyko sukurti paskyros. Bandykite dar kartą.");
@@ -64,19 +97,51 @@ export default function RegisterPage() {
 
   async function handleGoogleRegister() {
     setErrorMsg("");
+    setSuccessMsg("");
     setGoogleLoading(true);
 
     try {
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/prisijungti?next=${encodeURIComponent("/paskyros-tipas")}`,
+          redirectTo: `${window.location.origin}/prisijungti?next=${encodeURIComponent("/account")}&mode=register`,
         },
       });
     } catch (e) {
       console.error("google auth error:", e);
       setErrorMsg("Nepavyko prisijungti su Google.");
       setGoogleLoading(false);
+    }
+  }
+
+  async function handleResendConfirmation() {
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    if (!email) {
+      setErrorMsg("Įrašykite el. pašto adresą.");
+      return;
+    }
+
+    setResendLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+
+      if (error) {
+        setErrorMsg(error.message);
+        return;
+      }
+
+      setSuccessMsg("Patvirtinimo laiškas išsiųstas dar kartą.");
+    } catch (error) {
+      console.error("resend confirmation error:", error);
+      setErrorMsg("Nepavyko išsiųsti patvirtinimo laiško.");
+    } finally {
+      setResendLoading(false);
     }
   }
 
@@ -130,11 +195,27 @@ export default function RegisterPage() {
           />
         </div>
 
+        {successMsg && (
+          <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+            <p className="ui-font text-sm text-emerald-700">{successMsg}</p>
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              disabled={resendLoading || loading || googleLoading}
+              className="ui-font mt-2 text-sm font-semibold text-emerald-800 hover:text-dark disabled:text-emerald-300"
+            >
+              {resendLoading
+                ? "Siunčiama..."
+                : "Siųsti patvirtinimo laišką dar kartą"}
+            </button>
+          </div>
+        )}
+
         {errorMsg && <p className="ui-font text-sm text-red-600">{errorMsg}</p>}
 
         <button
           type="submit"
-          disabled={loading || googleLoading}
+          disabled={loading || googleLoading || resendLoading}
           className="ui-font w-full rounded-xl bg-primary py-2 text-lg font-semibold text-white shadow-md hover:bg-dark disabled:bg-slate-300"
         >
           {loading ? "Kuriama..." : "Sukurti paskyrą"}
@@ -144,7 +225,7 @@ export default function RegisterPage() {
       <button
         type="button"
         onClick={handleGoogleRegister}
-        disabled={loading || googleLoading}
+        disabled={loading || googleLoading || resendLoading}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2 text-lg ui-font hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
       >
         <img src="/icons/google.png" alt="Google icon" className="w-5 h-5" />

@@ -111,7 +111,7 @@ export default function ServiceProviderOnboardingPage() {
 
     const { error: insertError } = await supabase.from("users").insert({
       ...payload,
-      role: "service_provider",
+      role: "partner",
     });
 
     if (insertError) {

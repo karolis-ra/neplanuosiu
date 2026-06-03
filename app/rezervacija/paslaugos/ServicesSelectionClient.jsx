@@ -234,7 +234,11 @@ export default function ServicesSelectionClient() {
             .eq("id", user.id)
             .maybeSingle();
 
-          if (userRow?.role === "venue_owner") {
+          if (
+            userRow?.role === "partner" ||
+            userRow?.role === "venue_owner" ||
+            userRow?.role === "service_provider"
+          ) {
             router.replace("/partner/venue");
             return;
           }

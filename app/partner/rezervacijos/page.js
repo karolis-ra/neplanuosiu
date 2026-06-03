@@ -217,6 +217,8 @@ async function saveApprovalDecision({ target, nowIso, nextStatus }) {
   const updatePayload = {
     status: nextStatus,
     responded_at: nowIso,
+    rejection_reason:
+      nextStatus === "rejected" ? target.rejectionReason || null : null,
   };
 
   async function updateApproval(buildQuery) {
@@ -327,6 +329,8 @@ async function insertApprovalDecision({ target, nowIso, nextStatus }) {
       venue_id: target.venueId || null,
       status: nextStatus,
       responded_at: nowIso,
+      rejection_reason:
+        nextStatus === "rejected" ? target.rejectionReason || null : null,
       ...(target.providerId ? { provider_id: target.providerId } : {}),
       ...(target.serviceId ? { service_id: target.serviceId } : {}),
     });
@@ -769,6 +773,7 @@ export default function PartnerReservationsPage() {
               venue_id,
               provider_id,
               service_id,
+              rejection_reason,
               booking:bookings!booking_approvals_booking_id_fkey (
                 id,
                 reservation_code,
@@ -856,6 +861,11 @@ export default function PartnerReservationsPage() {
   }, [router]);
 
   async function handleDecision(target) {
+    if (target.nextStatus === "rejected" && !target.rejectionReason?.trim()) {
+      setErrorMsg("Įrašykite atmetimo priežastį.");
+      return;
+    }
+
     setProcessingKey(target.itemKey);
     setErrorMsg("");
 
@@ -899,6 +909,7 @@ export default function PartnerReservationsPage() {
                   providerId: item.service?.provider_id,
                   venueId: target.venueId,
                   nextStatus: "rejected",
+                  rejectionReason: target.rejectionReason,
                   itemKey: `service:${target.bookingId}:${item.service_id}`,
                 },
                 nowIso,
@@ -928,6 +939,10 @@ export default function PartnerReservationsPage() {
                   ...order.roomApproval,
                   status: target.nextStatus,
                   responded_at: nowIso,
+                  rejection_reason:
+                    target.nextStatus === "rejected"
+                      ? target.rejectionReason || null
+                      : null,
                   synthetic: false,
                 }
               : order.roomApproval;
@@ -946,6 +961,10 @@ export default function PartnerReservationsPage() {
                     ...item.approval,
                     status: target.nextStatus,
                     responded_at: nowIso,
+                    rejection_reason:
+                      target.nextStatus === "rejected"
+                        ? target.rejectionReason || null
+                        : null,
                     synthetic: false,
                   },
                 }
@@ -983,6 +1002,7 @@ export default function PartnerReservationsPage() {
         serviceId: target.serviceId,
         venueId: target.venueId,
         status: target.nextStatus,
+        rejectionReason: target.rejectionReason,
       });
     } catch (error) {
       console.warn("reservation decision warning:", {

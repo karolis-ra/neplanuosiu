@@ -49,7 +49,11 @@ export default function RoomCard({
     }
   };
 
-  const ctaLabel = userRole === "venue_owner" ? "Peržiūrėti" : "Rezervuoti";
+  const isPartner =
+    userRole === "partner" ||
+    userRole === "venue_owner" ||
+    userRole === "service_provider";
+  const ctaLabel = isPartner ? "Peržiūrėti" : "Rezervuoti";
 
   return (
     <article className="relative flex flex-col overflow-hidden rounded-3xl bg-white shadow-sm">

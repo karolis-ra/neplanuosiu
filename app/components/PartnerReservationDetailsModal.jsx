@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 function getStatusLabel(status) {
   switch (status) {
     case "pending":
@@ -63,6 +65,7 @@ function ItemCard({
   title,
   subtitle,
   status,
+  rejectionReason,
   meta,
   canManage,
   actionLabel,
@@ -92,6 +95,17 @@ function ItemCard({
 
           {subtitle && (
             <p className="ui-font text-[14px] text-slate-500">{subtitle}</p>
+          )}
+
+          {status === "rejected" && rejectionReason && (
+            <div className="rounded-[18px] bg-red-50 px-[14px] py-[12px]">
+              <p className="ui-font text-[12px] font-semibold text-red-700">
+                Atmetimo priežastis
+              </p>
+              <p className="mt-[6px] ui-font text-[14px] leading-[22px] text-red-700">
+                {rejectionReason}
+              </p>
+            </div>
           )}
 
           <div className="grid gap-[10px] md:grid-cols-2 xl:grid-cols-3">
@@ -148,6 +162,9 @@ export default function PartnerReservationDetailsModal({
   onClose,
   onDecision,
 }) {
+  const [rejectionTarget, setRejectionTarget] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+
   if (!open || !order) return null;
 
   const booking = order.booking || {};
@@ -155,6 +172,36 @@ export default function PartnerReservationDetailsModal({
   const venue = room.venue || {};
   const roomCanManage = Boolean(venueId && room.venue_id === venueId);
   const roomItemKey = `venue:${booking.id}`;
+  const trimmedRejectionReason = rejectionReason.trim();
+
+  function openRejectionDialog(target) {
+    setRejectionTarget(target);
+    setRejectionReason("");
+  }
+
+  function closeRejectionDialog() {
+    if (processingKey === rejectionTarget?.itemKey) return;
+    setRejectionTarget(null);
+    setRejectionReason("");
+  }
+
+  function submitRejection(event) {
+    event.preventDefault();
+    if (!rejectionTarget || !trimmedRejectionReason) return;
+
+    onDecision({
+      ...rejectionTarget,
+      rejectionReason: trimmedRejectionReason,
+    });
+    setRejectionTarget(null);
+    setRejectionReason("");
+  }
+
+  function closeDetails() {
+    setRejectionTarget(null);
+    setRejectionReason("");
+    onClose();
+  }
 
   return (
     <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
@@ -178,7 +225,7 @@ export default function PartnerReservationDetailsModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeDetails}
             className="ui-font flex h-[40px] w-[40px] items-center justify-center rounded-full border border-slate-200 bg-white text-[22px] text-slate-600 transition hover:bg-slate-50"
             aria-label="Uždaryti"
           >
@@ -226,6 +273,7 @@ export default function PartnerReservationDetailsModal({
             title={room.name || "Kambario rezervacija"}
             subtitle="Žaidimų kambario rezervacija"
             status={order.roomApproval.status}
+            rejectionReason={order.roomApproval.rejection_reason}
             meta={[
               {
                 label: "Laikas",
@@ -259,7 +307,7 @@ export default function PartnerReservationDetailsModal({
               })
             }
             onReject={() =>
-              onDecision({
+              openRejectionDialog({
                 bookingId: booking.id,
                 approvalType: "venue",
                 approval: order.roomApproval,
@@ -286,6 +334,7 @@ export default function PartnerReservationDetailsModal({
                 title={service.name || "Paslauga"}
                 subtitle={`${getServiceTypeLabel(service.service_type)} - ${providerName}`}
                 status={item.approval.status}
+                rejectionReason={item.approval.rejection_reason}
                 meta={[
                   {
                     label: "Tipas",
@@ -327,7 +376,7 @@ export default function PartnerReservationDetailsModal({
                   })
                 }
                 onReject={() =>
-                  onDecision({
+                  openRejectionDialog({
                     bookingId: booking.id,
                     approvalType: "service",
                     approval: item.approval,
@@ -343,6 +392,62 @@ export default function PartnerReservationDetailsModal({
           })}
         </div>
       </section>
+
+      {rejectionTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/50 px-[16px]">
+          <form
+            onSubmit={submitRejection}
+            className="w-full max-w-[520px] rounded-[24px] bg-white p-[22px] shadow-xl"
+          >
+            <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
+              Atmetimo priežastis
+            </p>
+            <h3 className="mt-[6px] ui-font text-[22px] font-semibold text-slate-900">
+              Kodėl rezervacija atmetama?
+            </h3>
+            <p className="mt-[8px] ui-font text-[14px] leading-[22px] text-slate-600">
+              Šis komentaras bus matomas klientui rezervacijos detalėse.
+            </p>
+
+            <label className="mt-[16px] block">
+              <span className="ui-font text-[13px] font-semibold text-slate-600">
+                Priežastis
+              </span>
+              <textarea
+                value={rejectionReason}
+                onChange={(event) => setRejectionReason(event.target.value)}
+                rows={4}
+                maxLength={500}
+                placeholder="Pvz. šis laikas jau rezervuotas arba negalime priimti tokio dalyvių skaičiaus."
+                className="mt-[6px] w-full resize-none rounded-[16px] border border-slate-200 bg-white px-[14px] py-[12px] ui-font text-[14px] leading-[22px] text-slate-800 outline-none transition focus:border-primary"
+              />
+            </label>
+
+            <div className="mt-[16px] flex flex-col gap-[10px] sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeRejectionDialog}
+                disabled={processingKey === rejectionTarget.itemKey}
+                className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+              >
+                Grįžti
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  processingKey === rejectionTarget.itemKey ||
+                  !trimmedRejectionReason
+                }
+                className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-red-600 px-[16px] text-[14px] font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200"
+              >
+                {processingKey === rejectionTarget.itemKey
+                  ? "Saugoma..."
+                  : "Atmesti rezervaciją"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

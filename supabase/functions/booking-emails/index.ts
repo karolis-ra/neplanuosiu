@@ -241,11 +241,13 @@ async function notifyClientAboutDecision({
   approvalType,
   serviceId,
   status,
+  rejectionReason,
 }: {
   bookingId: string;
   approvalType?: string;
   serviceId?: string;
   status?: string;
+  rejectionReason?: string;
 }) {
   const booking = await getBooking(bookingId);
   const to = booking.guest_email;
@@ -265,10 +267,19 @@ async function notifyClientAboutDecision({
   const label = statusLabel(status);
   const link = `${appUrl}/account#rezervacijos`;
   const subject = `Rezervacijos būsena ${label}`;
+  const reasonText =
+    status === "rejected" && rejectionReason?.trim()
+      ? rejectionReason.trim()
+      : "";
   const html = `
     <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.5">
       <h2>Rezervacijos būsena ${escapeHtml(label)}</h2>
       <p>Atnaujinta jūsų rezervacijos dalis: <strong>${escapeHtml(itemName)}</strong>.</p>
+      ${
+        reasonText
+          ? `<p><strong>Atmetimo priežastis:</strong> ${escapeHtml(reasonText)}</p>`
+          : ""
+      }
       ${bookingSummaryRows(booking)}
       <p>Visą rezervacijos informaciją galite stebėti savo profilio puslapyje.</p>
       <p>
@@ -278,7 +289,7 @@ async function notifyClientAboutDecision({
       </p>
     </div>
   `;
-  const text = `Jūsų rezervacijos dalis "${itemName}" yra ${label}. Rezervaciją galite stebėti profilyje: ${link}`;
+  const text = `Jūsų rezervacijos dalis "${itemName}" yra ${label}.${reasonText ? ` Atmetimo priežastis: ${reasonText}.` : ""} Rezervaciją galite stebėti profilyje: ${link}`;
 
   await sendEmail({ to, subject, html, text });
   return { sent: 1 };

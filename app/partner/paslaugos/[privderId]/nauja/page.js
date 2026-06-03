@@ -33,6 +33,30 @@ const weekdays = [
   { value: 0, label: "Sekmadienis", shortLabel: "Sk" },
 ];
 
+function createDefaultWeeklyAvailability() {
+  return weekdays.map((day) => ({
+    weekday: day.value,
+    enabled: [1, 2, 3, 4, 5].includes(day.value),
+    startTime: "09:00",
+    endTime: "18:00",
+  }));
+}
+
+function buildWeeklyAvailability(rows = []) {
+  return createDefaultWeeklyAvailability().map((day) => {
+    const row = rows.find((item) => item.weekday === day.weekday);
+
+    return row
+      ? {
+          ...day,
+          enabled: true,
+          startTime: String(row.start_time || "").slice(0, 5) || day.startTime,
+          endTime: String(row.end_time || "").slice(0, 5) || day.endTime,
+        }
+      : day;
+  });
+}
+
 function sanitizeFileName(fileName) {
   return String(fileName || "photo")
     .trim()
@@ -96,9 +120,9 @@ export default function CreateServicePage() {
   const [ingredients, setIngredients] = useState("");
   const [notes, setNotes] = useState("");
   const [isGlobal, setIsGlobal] = useState(true);
-  const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]);
-  const [openTime, setOpenTime] = useState("09:00");
-  const [closeTime, setCloseTime] = useState("18:00");
+  const [weeklyAvailability, setWeeklyAvailability] = useState(
+    createDefaultWeeklyAvailability,
+  );
   const [photoFiles, setPhotoFiles] = useState([]);
 
   const photoPreviews = useMemo(
@@ -168,9 +192,7 @@ export default function CreateServicePage() {
       if (!isMounted) return;
 
       if (availabilityRows?.length) {
-        setSelectedDays(availabilityRows.map((item) => item.weekday));
-        setOpenTime(String(availabilityRows[0].start_time || "").slice(0, 5));
-        setCloseTime(String(availabilityRows[0].end_time || "").slice(0, 5));
+        setWeeklyAvailability(buildWeeklyAvailability(availabilityRows));
       }
 
       setProvider(providerRow);
@@ -184,11 +206,11 @@ export default function CreateServicePage() {
     };
   }, [router, providerId]);
 
-  function toggleDay(dayValue) {
-    setSelectedDays((current) =>
-      current.includes(dayValue)
-        ? current.filter((value) => value !== dayValue)
-        : [...current, dayValue].sort((a, b) => a - b),
+  function updateAvailabilityDay(dayValue, field, value) {
+    setWeeklyAvailability((current) =>
+      current.map((item) =>
+        item.weekday === dayValue ? { ...item, [field]: value } : item,
+      ),
     );
   }
 
@@ -216,12 +238,18 @@ export default function CreateServicePage() {
       return;
     }
 
-    if (!selectedDays.length) {
+    const enabledAvailability = weeklyAvailability.filter((item) => item.enabled);
+
+    if (!enabledAvailability.length) {
       setErrorMsg("Pasirinkite bent viena darbo diena.");
       return;
     }
 
-    if (!openTime || !closeTime || openTime >= closeTime) {
+    if (
+      enabledAvailability.some(
+        (item) => !item.startTime || !item.endTime || item.startTime >= item.endTime,
+      )
+    ) {
       setErrorMsg("Nurodykite teisingą paslaugų laiką.");
       return;
     }
@@ -270,11 +298,11 @@ export default function CreateServicePage() {
         );
       }
 
-      const availabilityRows = selectedDays.map((weekday) => ({
+      const availabilityRows = enabledAvailability.map((item) => ({
         provider_id: providerId,
-        weekday,
-        start_time: openTime,
-        end_time: closeTime,
+        weekday: item.weekday,
+        start_time: item.startTime,
+        end_time: item.endTime,
       }));
 
       const { error: availabilityError } = await supabase
@@ -481,40 +509,57 @@ export default function CreateServicePage() {
               Darbo laikas
             </p>
 
-            <div className="flex flex-wrap gap-[10px]">
+            <div className="space-y-[10px]">
               {weekdays.map((day) => {
-                const isSelected = selectedDays.includes(day.value);
+                const value = weeklyAvailability.find(
+                  (item) => item.weekday === day.value,
+                );
+
                 return (
-                  <button
+                  <div
                     key={day.value}
-                    type="button"
-                    onClick={() => toggleDay(day.value)}
-                    className={`ui-font inline-flex h-[42px] items-center justify-center rounded-full border px-[16px] text-[14px] font-medium transition ${
-                      isSelected
-                        ? "border-primary bg-primary text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-primary"
-                    }`}
+                    className="grid gap-[10px] rounded-[16px] bg-white p-[10px] md:grid-cols-[1fr_150px_150px]"
                   >
-                    {day.shortLabel}
-                  </button>
+                    <label className="flex items-center gap-[10px]">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(value?.enabled)}
+                        onChange={(event) =>
+                          updateAvailabilityDay(
+                            day.value,
+                            "enabled",
+                            event.target.checked,
+                          )
+                        }
+                        className="h-4 w-4 accent-primary"
+                      />
+                      <span className="ui-font text-[14px] font-semibold text-slate-700">
+                        {day.label}
+                      </span>
+                    </label>
+
+                    <input
+                      type="time"
+                      value={value?.startTime || "09:00"}
+                      disabled={!value?.enabled}
+                      onChange={(event) =>
+                        updateAvailabilityDay(day.value, "startTime", event.target.value)
+                      }
+                      className="ui-font h-[44px] rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] outline-none focus:border-primary disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+
+                    <input
+                      type="time"
+                      value={value?.endTime || "18:00"}
+                      disabled={!value?.enabled}
+                      onChange={(event) =>
+                        updateAvailabilityDay(day.value, "endTime", event.target.value)
+                      }
+                      className="ui-font h-[44px] rounded-[14px] border border-slate-200 bg-white px-[12px] text-[14px] outline-none focus:border-primary disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
                 );
               })}
-            </div>
-
-            <div className="mt-[12px] grid gap-[12px] md:grid-cols-2">
-              <input
-                type="time"
-                value={openTime}
-                onChange={(e) => setOpenTime(e.target.value)}
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-              />
-
-              <input
-                type="time"
-                value={closeTime}
-                onChange={(e) => setCloseTime(e.target.value)}
-                className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] text-[14px] outline-none focus:border-primary"
-              />
             </div>
 
             <p className="ui-font mt-[10px] text-[12px] leading-[20px] text-slate-500">

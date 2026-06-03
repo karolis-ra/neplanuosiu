@@ -133,7 +133,11 @@ export default function ReservationClient() {
 
           if (!isMounted) return;
 
-          if (userRoleRow?.role === "venue_owner") {
+          if (
+            userRoleRow?.role === "partner" ||
+            userRoleRow?.role === "venue_owner" ||
+            userRoleRow?.role === "service_provider"
+          ) {
             router.replace("/partner/venue");
             return;
           }

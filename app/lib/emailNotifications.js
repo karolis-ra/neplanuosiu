@@ -29,6 +29,7 @@ export function notifyBookingDecision({
   serviceId,
   venueId,
   status,
+  rejectionReason,
 }) {
   if (!bookingId || !status) return Promise.resolve();
 
@@ -39,5 +40,6 @@ export function notifyBookingDecision({
     serviceId,
     venueId,
     status,
+    rejectionReason,
   });
 }

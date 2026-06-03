@@ -295,7 +295,7 @@ export default function PartnerPage() {
         }
 
         if (!currentRole || currentRole === "client") {
-          router.replace("/paskyros-tipas");
+          router.replace("/account");
           return;
         }
 

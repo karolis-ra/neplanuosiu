@@ -260,6 +260,21 @@ function PriceRow({ label, value }) {
   );
 }
 
+function RejectionReason({ reason }) {
+  if (!reason) return null;
+
+  return (
+    <div className="mt-[12px] rounded-[18px] bg-red-50 px-[14px] py-[12px]">
+      <p className="ui-font text-[12px] font-semibold text-red-700">
+        Atmetimo priežastis
+      </p>
+      <p className="mt-[6px] ui-font text-[14px] leading-[22px] text-red-700">
+        {reason}
+      </p>
+    </div>
+  );
+}
+
 function ContactCells({ phone, email, phoneLabel = "Telefonas", emailLabel = "El. paštas" }) {
   return (
     <>
@@ -622,6 +637,9 @@ function ClientReservationDetailsModal({ booking, onClose }) {
               label="Kambario kaina"
               value={formatPrice(roomPrice)}
             />
+            {roomApproval.status === "rejected" && (
+              <RejectionReason reason={roomApproval.rejection_reason} />
+            )}
           </article>
 
           {serviceItems.map((item) => {
@@ -667,6 +685,9 @@ function ClientReservationDetailsModal({ booking, onClose }) {
                   label="Paslaugos kaina"
                   value={formatPrice(itemTotal)}
                 />
+                {item.approval.status === "rejected" && (
+                  <RejectionReason reason={item.approval.rejection_reason} />
+                )}
               </article>
             );
           })}
@@ -746,7 +767,7 @@ export default function AccountPage() {
 
         const { data: userRow, error: userRowError } = await supabase
           .from("users")
-          .select("role, full_name, email, phone")
+          .select("id, role, full_name, email, phone")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -756,7 +777,13 @@ export default function AccountPage() {
           console.error("user role error:", userRowError.message);
         }
 
-        const role = userRow?.role || "client";
+        if (!userRow?.id || !userRow?.role) {
+          await supabase.auth.signOut();
+          router.replace("/prisijungti");
+          return;
+        }
+
+        const role = userRow.role;
         setSettingsForm({
           fullName:
             userRow?.full_name || user.user_metadata?.full_name || "",
@@ -769,7 +796,7 @@ export default function AccountPage() {
           return;
         }
 
-        if (role === "venue_owner" || role === "service_provider") {
+        if (role === "partner" || role === "venue_owner" || role === "service_provider") {
           router.replace("/partner");
           return;
         }
@@ -855,6 +882,7 @@ export default function AccountPage() {
               approval_type,
               service_id,
               status,
+              rejection_reason,
               responded_at,
               created_at
             ),

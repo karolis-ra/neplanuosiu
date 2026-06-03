@@ -424,6 +424,7 @@ export default function AuthMenu({ onCloseMobileMenu }) {
     user?.user_metadata?.full_name || user?.email || "Vartotojas";
   const isAdmin = userRole === "admin";
   const isPartner =
+    userRole === "partner" ||
     userRole === "venue_owner" ||
     userRole === "service_provider" ||
     hasPartnerReservations;

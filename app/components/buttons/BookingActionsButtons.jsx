@@ -64,8 +64,8 @@ export default function BookingActionButtons({
     totalPrice,
   ]);
 
-  const bookingDisabled =
-    !roomId || !selectedDate || !selectedTime || userRole === "venue_owner";
+  const isPartner = userRole === "partner" || userRole === "venue_owner" || userRole === "service_provider";
+  const bookingDisabled = !roomId || !selectedDate || !selectedTime || isPartner;
 
   return (
     <div className="space-y-[12px]">
@@ -89,10 +89,10 @@ export default function BookingActionButtons({
         </button>
       </div>
 
-      {userRole === "venue_owner" ? (
+      {isPartner ? (
         <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
-          žaidimų erdvės valdytojas negali teikti rezervacijos užklausos is
-          kliento srauto.
+          Partnerio paskyra negali teikti rezervacijos užklausos iš kliento
+          srauto.
         </p>
       ) : (
         <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
