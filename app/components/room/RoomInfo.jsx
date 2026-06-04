@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 const WEEKDAY_LABELS = {
   0: "Sekmadienis",
   1: "Pirmadienis",
@@ -71,7 +73,12 @@ export default function RoomInfo({ room, venue, availability = [] }) {
         <h2 className="ui-font mb-1 text-lg font-semibold text-dark">Vieta</h2>
 
         <p className="ui-font text-sm text-gray-700">
-          <span className="font-semibold">{venue.name}</span>
+          <Link
+            href={`/tiekejai/${venue.id}`}
+            className="font-semibold text-primary transition hover:text-dark"
+          >
+            {venue.name}
+          </Link>
           <br />
           {venue.address || "Adresas nenurodytas"}
           {venue.city ? `, ${venue.city}` : ""}

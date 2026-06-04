@@ -118,6 +118,7 @@ export default async function SearchPage({
 
   roomsWithImages = roomsWithImages.map((room) => ({
     ...room,
+    venue_id: room.venues?.id || room.venue_id,
     venue_name: room.venues?.name || "",
     venue_address: room.venues?.address || "",
     venue_city: room.venues?.city || room.city || "",
@@ -133,6 +134,7 @@ export default async function SearchPage({
       venueMap.set(venue.id, {
         id: venue.id,
         venueName: venue.name,
+        address: venue.address,
         city: room.city,
         latitude: venue.latitude,
         longitude: venue.longitude,

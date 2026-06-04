@@ -12,10 +12,7 @@ const footerLinks = [
   },
   {
     title: "Partneriams",
-    links: [
-      { href: "/partner/registracija", label: "Tapti partneriu" },
-      { href: "/partner", label: "Partnerio paskyra" },
-    ],
+    links: [{ href: "/partner/registracija", label: "Tapti partneriu" }],
   },
 ];
 

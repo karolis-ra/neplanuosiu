@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import ResponsiveImageFrame from "./ResponsiveImageFrame";
 
@@ -35,7 +36,17 @@ export default function ServiceDetailsModal({
               {service.name}
             </p>
             <p className="ui-font mt-[4px] text-[13px] text-slate-500">
-              Tiekėjas: {service.provider_name || "Nenurodytas"}
+              Tiekėjas:{" "}
+              {service.provider_id ? (
+                <Link
+                  href={`/tiekejai/${service.provider_id}`}
+                  className="font-semibold text-primary transition hover:text-dark"
+                >
+                  {service.provider_name || "Nenurodytas"}
+                </Link>
+              ) : (
+                service.provider_name || "Nenurodytas"
+              )}
             </p>
           </div>
 
@@ -99,7 +110,7 @@ export default function ServiceDetailsModal({
                 <h3 className="ui-font text-[15px] font-semibold text-slate-900">
                   Aprašymas
                 </h3>
-                <p className="ui-font mt-[8px] text-[14px] leading-[22px] text-slate-600">
+                <p className="ui-font mt-[8px] whitespace-pre-line text-[14px] leading-[22px] text-slate-600">
                   {service.full_description || service.description}
                 </p>
               </section>
@@ -110,7 +121,7 @@ export default function ServiceDetailsModal({
                 <h3 className="ui-font text-[15px] font-semibold text-slate-900">
                   Kas įeina
                 </h3>
-                <p className="ui-font mt-[8px] text-[14px] leading-[22px] text-slate-600">
+                <p className="ui-font mt-[8px] whitespace-pre-line text-[14px] leading-[22px] text-slate-600">
                   {service.includes_text}
                 </p>
               </section>
@@ -121,7 +132,7 @@ export default function ServiceDetailsModal({
                 <h3 className="ui-font text-[15px] font-semibold text-slate-900">
                   Sudėtis
                 </h3>
-                <p className="ui-font mt-[8px] text-[14px] leading-[22px] text-slate-600">
+                <p className="ui-font mt-[8px] whitespace-pre-line text-[14px] leading-[22px] text-slate-600">
                   {service.ingredients}
                 </p>
               </section>
@@ -132,7 +143,7 @@ export default function ServiceDetailsModal({
                 <h3 className="ui-font text-[15px] font-semibold text-slate-900">
                   Papildoma informacija
                 </h3>
-                <p className="ui-font mt-[8px] text-[14px] leading-[22px] text-slate-600">
+                <p className="ui-font mt-[8px] whitespace-pre-line text-[14px] leading-[22px] text-slate-600">
                   {service.notes}
                 </p>
               </section>

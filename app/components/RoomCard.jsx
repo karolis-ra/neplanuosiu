@@ -93,9 +93,12 @@ export default function RoomCard({
         </div>
 
         {room.venue_name && (
-          <p className="ui-font line-clamp-1 text-xs text-slate-500">
+          <Link
+            href={`/tiekejai/${room.venue_id}`}
+            className="ui-font line-clamp-1 text-xs font-medium text-slate-500 transition hover:text-primary"
+          >
             {room.venue_name}
-          </p>
+          </Link>
         )}
 
         {(city || address) && (
