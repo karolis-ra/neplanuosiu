@@ -562,15 +562,13 @@ export default function PartnerVenuePage() {
                   Peržiūrėti rezervacijų užklausas
                 </button>
 
-                {!provider && (
-                  <button
-                    type="button"
-                    onClick={() => router.push("/partner/onboarding/paslaugos")}
-                    className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
-                  >
-                    Sukurti paslaugų profilį
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => router.push("/partner/paslaugos")}
+                  className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white transition hover:bg-dark"
+                >
+                  Valdyti paslaugas
+                </button>
               </div>
             </div>
 

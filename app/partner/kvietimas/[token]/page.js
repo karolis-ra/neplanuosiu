@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import Loader from "../../../components/Loader";
 
+const PARTNER_ROLE = "venue_owner";
+
 function isExpired(value) {
   if (!value) return false;
   return new Date(value).getTime() < Date.now();
@@ -131,7 +133,7 @@ export default function PartnerInvitePage() {
             id: user.id,
             email: invite.email,
             full_name: fullName.trim(),
-            role: "partner",
+            role: PARTNER_ROLE,
           },
           { onConflict: "id" },
         );

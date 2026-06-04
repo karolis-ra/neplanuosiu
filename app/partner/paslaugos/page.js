@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { mapServiceImagesWithUrls } from "../../lib/serviceImageUtils";
+import { ensurePartnerServiceProvider } from "../../lib/partnerServiceProvider";
 import ResponsiveImageFrame from "../../components/ResponsiveImageFrame";
 import Loader from "../../components/Loader";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -394,25 +395,12 @@ export default function PartnerServicesPage() {
           return;
         }
 
-        const { data: providerRow, error: providerError } = await supabase
-          .from("service_providers")
-          .select(
-            "id, name, description, address, city, email, phone, website, facebook_url, instagram_url, tiktok_url, google_maps_url",
-          )
-          .eq("owner_id", user.id)
-          .limit(1)
-          .maybeSingle();
+        const providerRow = await ensurePartnerServiceProvider({
+          supabase,
+          user,
+        });
 
         if (!isMounted) return;
-
-        if (providerError) {
-          throw providerError;
-        }
-
-        if (!providerRow) {
-          router.replace("/partner/onboarding/paslaugos");
-          return;
-        }
 
         setProvider(providerRow);
 
@@ -685,11 +673,11 @@ export default function PartnerServicesPage() {
       if (error) throw error;
 
       setProvider((current) => ({ ...current, ...payload }));
-      setSuccessMsg("Paslaugų profilis atnaujintas.");
+      setSuccessMsg("Paslaugų kontaktai atnaujinti.");
       closeProviderModal();
     } catch (error) {
       console.error("save provider profile error:", error);
-      setErrorMsg("Nepavyko išsaugoti paslaugų profilio pakeitimų.");
+      setErrorMsg("Nepavyko išsaugoti paslaugų kontaktų.");
     } finally {
       setSavingProvider(false);
     }
@@ -1096,7 +1084,7 @@ export default function PartnerServicesPage() {
     } catch (error) {
       console.error("delete service provider profile error:", error);
       setErrorMsg(
-        "Nepavyko ištrinti paslaugų profilio. Gali būti, kad profiliui vis dar yra susietų rezervacijų arba trūksta duomenų bazės leidimų.",
+        "Nepavyko ištrinti paslaugų. Gali būti, kad jos vis dar turi susietų rezervacijų arba trūksta duomenų bazės leidimų.",
       );
     } finally {
       setDeletingProvider(false);
@@ -1118,7 +1106,8 @@ export default function PartnerServicesPage() {
             Mano paslaugos
           </h1>
           <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-            Čia valdysite paslaugų profilį ir savo siūlomas paslaugas.
+            Čia valdysite savo siūlomas paslaugas iš tos pačios partnerio
+            paskyros.
           </p>
         </div>
 
@@ -1150,8 +1139,13 @@ export default function PartnerServicesPage() {
           <div className="flex flex-col gap-[16px] md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="ui-font text-[24px] font-semibold text-slate-900">
-                {provider.name}
+                Paslaugų kontaktai
               </h2>
+
+              <p className="mt-[8px] ui-font max-w-[760px] text-[14px] leading-[22px] text-slate-600">
+                Šie duomenys naudojami paslaugų užklausoms ir klientų
+                komunikacijai. Tai nėra atskiras partnerio profilis.
+              </p>
 
               {(provider.address || provider.city) && (
                 <p className="mt-[8px] ui-font text-[14px] text-slate-500">
@@ -1226,7 +1220,7 @@ export default function PartnerServicesPage() {
               onClick={openProviderModal}
               className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-primary px-[16px] text-[14px] font-semibold text-white shadow-md transition hover:bg-dark"
             >
-              Valdyti paslaugų profilį
+              Atnaujinti kontaktus
             </button>
 
             <button
@@ -1237,14 +1231,6 @@ export default function PartnerServicesPage() {
               Peržiūrėti paslaugų užklausas
             </button>
 
-            <button
-              type="button"
-              onClick={() => setDeleteProviderModalOpen(true)}
-              disabled={deletingProvider}
-              className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-red-200 bg-red-50 px-[16px] text-[14px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {deletingProvider ? "Trinama..." : "Ištrinti paslaugų profilį"}
-            </button>
           </div>
         </section>
       )}
@@ -1423,7 +1409,7 @@ export default function PartnerServicesPage() {
             <div className="mb-[18px] flex items-start justify-between gap-[16px]">
               <div>
                 <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
-                  Paslaugų profilis
+                  Paslaugų kontaktai
                 </p>
                 <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
                   Kontaktinė informacija
@@ -1445,7 +1431,7 @@ export default function PartnerServicesPage() {
                 type="text"
                 value={providerForm.name}
                 onChange={(e) => updateProviderForm("name", e.target.value)}
-                placeholder="Paslaugų profilio pavadinimas"
+                placeholder="Kontaktų pavadinimas"
                 className="ui-font h-[48px] w-full rounded-[16px] border border-slate-200 px-[14px] text-[14px] outline-none focus:border-primary"
               />
 
@@ -1455,7 +1441,7 @@ export default function PartnerServicesPage() {
                   updateProviderForm("description", e.target.value)
                 }
                 rows={3}
-                placeholder="Trumpas profilio aprašymas"
+                placeholder="Trumpas aprašymas"
                 className="ui-font w-full rounded-[16px] border border-slate-200 px-[14px] py-[12px] text-[14px] outline-none focus:border-primary"
               />
 
@@ -1557,7 +1543,7 @@ export default function PartnerServicesPage() {
                   disabled={savingProvider}
                   className="ui-font inline-flex h-[48px] flex-1 items-center justify-center rounded-[16px] bg-primary px-[18px] text-[14px] font-semibold text-white transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  {savingProvider ? "Saugoma..." : "Išsaugoti profilį"}
+                  {savingProvider ? "Saugoma..." : "Išsaugoti kontaktus"}
                 </button>
 
                 <button
@@ -1827,9 +1813,9 @@ export default function PartnerServicesPage() {
 
       <ConfirmModal
         open={deleteProviderModalOpen}
-        title="Ištrinti paslaugų profilį?"
-        message="Bus pašalintas paslaugų profilis, visos jo paslaugos, nuotraukos ir užimti laikai. Susietos paslaugos taip pat bus pašalintos iš rezervacijų. Ar tikrai norite tęsti?"
-        confirmLabel="Taip, ištrinti profilį"
+        title="Ištrinti visas paslaugas?"
+        message="Bus pašalintos visos paslaugos, jų nuotraukos ir užimti laikai. Susietos paslaugos taip pat bus pašalintos iš rezervacijų. Ar tikrai norite tęsti?"
+        confirmLabel="Taip, ištrinti paslaugas"
         cancelLabel="Ne, palikti"
         loading={deletingProvider}
         onCancel={() => setDeleteProviderModalOpen(false)}

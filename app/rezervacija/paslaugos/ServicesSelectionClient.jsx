@@ -11,6 +11,7 @@ import {
   timeToMinutes,
 } from "../../lib/serviceAvailability";
 import { mapServiceImagesWithUrls } from "../../lib/serviceImageUtils";
+import Loader from "../../components/Loader";
 import ResponsiveImageFrame from "../../components/ResponsiveImageFrame";
 import ServiceDetailsModal from "../../components/ServiceDetailsModal";
 
@@ -558,6 +559,8 @@ export default function ServicesSelectionClient() {
   const continueToCheckout = () => {
     const query = new URLSearchParams(searchParams.toString());
 
+    query.set("servicesReviewed", "1");
+
     query.delete("decorationsId");
     if (selectedDecorations) {
       query.set("decorationsId", selectedDecorations.id);
@@ -577,19 +580,6 @@ export default function ServicesSelectionClient() {
 
     query.set("servicesTotal", String(servicesTotal));
     query.set("grandTotal", String(grandTotal));
-
-    router.push(`/rezervacija?${query.toString()}`);
-  };
-
-  const continueRoomOnly = () => {
-    const query = new URLSearchParams(searchParams.toString());
-    query.delete("decorationsId");
-    query.delete("animatorId");
-    query.delete("animatorIds");
-    query.delete("cakeId");
-    query.delete("cakeIds");
-    query.delete("servicesTotal");
-    query.delete("grandTotal");
 
     router.push(`/rezervacija?${query.toString()}`);
   };
@@ -642,11 +632,7 @@ export default function ServicesSelectionClient() {
   };
 
   if (loading) {
-    return (
-      <main className="mx-auto max-w-[1100px] px-[16px] py-[40px]">
-        <p className="ui-font text-[14px] text-slate-500">Kraunama...</p>
-      </main>
-    );
+    return <Loader message="Kraunamos papildomos paslaugos..." />;
   }
 
   return (
@@ -815,13 +801,6 @@ export default function ServicesSelectionClient() {
                   Tęsti
                 </button>
 
-                <button
-                  type="button"
-                  onClick={continueRoomOnly}
-                  className="ui-font inline-flex h-[48px] w-full items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Tęsti tik su kambariu
-                </button>
               </div>
             </div>
           </div>

@@ -6,6 +6,13 @@ import { supabase } from "../lib/supabaseClient";
 import { buildRoomsWithImages } from "../lib/roomImageUtils";
 import RoomCard from "../components/RoomCard";
 import Loader from "../components/Loader";
+import ConfirmModal from "../components/ConfirmModal";
+
+const PARTNER_ROLES = ["partner", "venue_owner", "service_provider"];
+
+function isPartnerRole(role) {
+  return PARTNER_ROLES.includes(role);
+}
 
 function canCancelBooking(booking) {
   if (!booking.event_date || !booking.start_time) return false;
@@ -713,6 +720,8 @@ export default function AccountPage() {
   const [settingsError, setSettingsError] = useState("");
   const [settingsSuccess, setSettingsSuccess] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteAccountConfirmOpen, setDeleteAccountConfirmOpen] =
+    useState(false);
   const [reservationTab, setReservationTab] = useState("active");
   const [reservationSearch, setReservationSearch] = useState("");
   const [activeBookingId, setActiveBookingId] = useState("");
@@ -796,7 +805,7 @@ export default function AccountPage() {
           return;
         }
 
-        if (role === "partner" || role === "venue_owner" || role === "service_provider") {
+        if (isPartnerRole(role)) {
           router.replace("/partner");
           return;
         }
@@ -1082,6 +1091,7 @@ export default function AccountPage() {
     setSettingsError("");
     setSettingsSuccess("");
     setDeleteConfirmText("");
+    setDeleteAccountConfirmOpen(false);
     setSettingsOpen(true);
 
     if (
@@ -1185,12 +1195,10 @@ export default function AccountPage() {
       return;
     }
 
-    const ok = confirm(
-      "Ar tikrai norite visam laikui ištrinti savo paskyrą?",
-    );
+    setDeleteAccountConfirmOpen(true);
+  }
 
-    if (!ok) return;
-
+  async function confirmDeleteAccount() {
     setSettingsDeleting(true);
     setSettingsError("");
 
@@ -1202,12 +1210,20 @@ export default function AccountPage() {
       await supabase.auth.signOut();
       router.replace("/");
     } catch (error) {
-      console.error("delete client account error:", error);
+      console.warn("delete client account error:", {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+      });
       setSettingsError(
-        "Nepavyko ištrinti paskyros. Patikrinkite, ar duomenų bazėje pritaikyta paskyros trynimo migracija.",
+        error?.message
+          ? `Nepavyko ištrinti paskyros. ${error.message}`
+          : "Nepavyko ištrinti paskyros. Patikrinkite, ar duomenų bazėje pritaikyta paskyros trynimo migracija.",
       );
     } finally {
       setSettingsDeleting(false);
+      setDeleteAccountConfirmOpen(false);
     }
   }
 
@@ -1462,6 +1478,21 @@ export default function AccountPage() {
         onSubmit={handleSaveSettings}
         onDelete={handleDeleteAccount}
         onDeleteConfirmChange={setDeleteConfirmText}
+      />
+
+      <ConfirmModal
+        open={deleteAccountConfirmOpen}
+        title="Ištrinti paskyrą?"
+        message="Šis veiksmas pašalins prisijungimą visam laikui. Rezervacijų istorija gali likti sistemoje be susietos kliento paskyros, kad apskaita išliktų tvarkinga."
+        confirmLabel="Taip, ištrinti paskyrą"
+        cancelLabel="Ne, palikti"
+        loading={settingsDeleting}
+        onCancel={() => {
+          if (!settingsDeleting) {
+            setDeleteAccountConfirmOpen(false);
+          }
+        }}
+        onConfirm={confirmDeleteAccount}
       />
     </main>
   );

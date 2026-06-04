@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { notifyBookingCreated } from "../lib/emailNotifications";
+import Loader from "../components/Loader";
 
 function parseTimeToMinutes(timeStr) {
   const normalized = String(timeStr || "").slice(0, 5);
@@ -56,6 +57,7 @@ export default function ReservationClient() {
   const grandTotal = Number(
     searchParams.get("grandTotal") || roomTotal + servicesTotal,
   );
+  const servicesReviewed = searchParams.get("servicesReviewed") === "1";
 
   const selectedServiceIds = useMemo(
     () => {
@@ -104,7 +106,31 @@ export default function ReservationClient() {
   }, [roomId, date, time, router]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (
+      !roomId ||
+      !date ||
+      !time ||
+      servicesReviewed ||
+      selectedServiceIds.length > 0
+    ) {
+      return;
+    }
+
+    router.replace(`/rezervacija/paslaugos?${searchParams.toString()}`);
+  }, [
+    date,
+    roomId,
+    router,
+    searchParams,
+    selectedServiceIds,
+    servicesReviewed,
+    time,
+  ]);
+
+  useEffect(() => {
+    if (!roomId || (selectedServiceIds.length === 0 && !servicesReviewed)) {
+      return;
+    }
 
     let isMounted = true;
 
@@ -220,7 +246,7 @@ export default function ReservationClient() {
     return () => {
       isMounted = false;
     };
-  }, [roomId, selectedServiceIds, router]);
+  }, [roomId, selectedServiceIds, servicesReviewed, router]);
 
   async function rollbackBooking(bookingId) {
     if (!bookingId) return;
@@ -504,11 +530,7 @@ export default function ReservationClient() {
       : null;
 
   if (loading) {
-    return (
-      <main className="mx-auto max-w-[1100px] px-[16px] py-[40px]">
-        <p className="ui-font text-[14px] text-slate-500">Kraunama...</p>
-      </main>
-    );
+    return <Loader message="Kraunama rezervacija..." />;
   }
 
   if (successBookingId) {

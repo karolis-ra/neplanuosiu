@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../../lib/supabaseClient";
 import { mapServiceImagesWithUrls } from "../../../../../lib/serviceImageUtils";
+import { ensurePartnerServiceProvider } from "../../../../../lib/partnerServiceProvider";
 import Loader from "../../../../../components/Loader";
 import ConfirmModal from "../../../../../components/ConfirmModal";
 import ResponsiveImageFrame from "../../../../../components/ResponsiveImageFrame";
@@ -91,7 +92,9 @@ export default function RoomServicesManagePage() {
   }, [photoPreviews]);
 
   const loadData = useCallback(
-    async (userId) => {
+    async (user) => {
+      const userId = user.id;
+
       const { data: roomRow, error: roomError } = await supabase
         .from("rooms")
         .select("id, name, venue_id")
@@ -117,14 +120,10 @@ export default function RoomServicesManagePage() {
         return;
       }
 
-      const { data: providerRow, error: providerError } = await supabase
-        .from("service_providers")
-        .select("id, name")
-        .eq("owner_id", userId)
-        .limit(1)
-        .maybeSingle();
-
-      if (providerError) throw providerError;
+      const providerRow = await ensurePartnerServiceProvider({
+        supabase,
+        user,
+      });
 
       const { data: serviceRows, error: servicesError } = await supabase
         .from("services")
@@ -190,7 +189,7 @@ export default function RoomServicesManagePage() {
           return;
         }
 
-        await loadData(user.id);
+        await loadData(user);
       } catch (error) {
         console.error("load room services error:", error);
         if (isMounted) {
@@ -356,11 +355,7 @@ export default function RoomServicesManagePage() {
       if (isNewService) {
         await supabase.from("services").delete().eq("id", serviceId);
       }
-      setErrorMsg(
-        provider?.id
-          ? "Nepavyko išsaugoti kambario paslaugos."
-          : "Norint kurti kambario paslaugas, pirmiausia reikia susikurti paslaugų teikėjo profilį.",
-      );
+      setErrorMsg("Nepavyko išsaugoti kambario paslaugos.");
     } finally {
       setSaving(false);
     }
@@ -431,22 +426,6 @@ export default function RoomServicesManagePage() {
       {successMsg && (
         <div className="mb-[16px] rounded-[16px] bg-emerald-50 px-[14px] py-[10px]">
           <p className="ui-font text-[14px] text-emerald-700">{successMsg}</p>
-        </div>
-      )}
-
-      {!provider && (
-        <div className="mb-[20px] rounded-[20px] border border-amber-200 bg-amber-50 px-[16px] py-[14px]">
-          <p className="ui-font text-[14px] leading-[22px] text-amber-800">
-            Kambario paslaugoms reikia paslaugų teikėjo profilio, nes pagal
-            dabartine duomenu baze kiekviena paslauga priklauso provideriui.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push("/partner/onboarding/paslaugos")}
-            className="ui-font mt-[12px] inline-flex h-[42px] items-center justify-center rounded-[14px] bg-primary px-[16px] text-[14px] font-semibold text-white"
-          >
-            Sukurti paslaugų profilį
-          </button>
         </div>
       )}
 
@@ -688,7 +667,7 @@ export default function RoomServicesManagePage() {
 
             <button
               type="submit"
-              disabled={saving || !provider}
+              disabled={saving}
               className="ui-font inline-flex h-[50px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {saving

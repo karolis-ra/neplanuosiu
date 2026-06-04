@@ -8,6 +8,7 @@ import RoomGallery from "@/app/components/room/RoomGallery";
 import RoomInfo from "@/app/components/room/RoomInfo";
 import BookingDateTimePicker from "../../components/BookingDateTimePicker";
 import VenueMap from "@/app/components/VenueMap";
+import Loader from "../../components/Loader";
 
 async function fetchRoomData(roomId) {
   const { data: room, error: roomError } = await supabase
@@ -83,9 +84,7 @@ export default function RoomBookingPage() {
   }, [roomId]);
 
   if (loading) {
-    return (
-      <div className="mx-auto mt-10 max-w-3xl px-4 pb-10">Kraunama...</div>
-    );
+    return <Loader message="Kraunamas kambario puslapis..." />;
   }
 
   if (error || !room) {

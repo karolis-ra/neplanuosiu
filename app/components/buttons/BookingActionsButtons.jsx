@@ -51,7 +51,7 @@ export default function BookingActionButtons({
       "duration",
       String(Number(baseDurationMinutes || 0) + Number(extraMinutes || 0)),
     );
-    query.set("baseDuration", String(baseDurationMinutes || 0));
+    query.set("baseDurationMinutes", String(baseDurationMinutes || 0));
     query.set("extraMinutes", String(extraMinutes || 0));
     query.set("roomTotal", String(totalPrice || 0));
     return query.toString();
@@ -64,30 +64,23 @@ export default function BookingActionButtons({
     totalPrice,
   ]);
 
-  const isPartner = userRole === "partner" || userRole === "venue_owner" || userRole === "service_provider";
-  const bookingDisabled = !roomId || !selectedDate || !selectedTime || isPartner;
+  const isPartner =
+    userRole === "partner" ||
+    userRole === "venue_owner" ||
+    userRole === "service_provider";
+  const bookingDisabled =
+    !roomId || !selectedDate || !selectedTime || isPartner;
 
   return (
     <div className="space-y-[12px]">
-      <div className="grid gap-[10px] sm:grid-cols-2">
-        <button
-          type="button"
-          disabled={bookingDisabled}
-          onClick={() => router.push(`/rezervacija?${params}`)}
-          className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] border border-primary bg-white px-[18px] text-[15px] font-semibold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
-        >
-          Rezervuoti tik kambari
-        </button>
-
-        <button
-          type="button"
-          disabled={bookingDisabled}
-          onClick={() => router.push(`/rezervacija/paslaugos?${params}`)}
-          className="ui-font inline-flex h-[48px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          Uzsakyti papildomas paslaugas
-        </button>
-      </div>
+      <button
+        type="button"
+        disabled={bookingDisabled}
+        onClick={() => router.push(`/rezervacija/paslaugos?${params}`)}
+        className="ui-font inline-flex h-[48px] w-full items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
+        Tęsti
+      </button>
 
       {isPartner ? (
         <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
@@ -96,8 +89,8 @@ export default function BookingActionButtons({
         </p>
       ) : (
         <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
-          Galite pasirinkti papildomas paslaugas: dekoracijas, animatorių ar
-          tortą pagal pasirinktą rezervacijos laiką.
+          Kitame žingsnyje peržiūrėsite papildomas paslaugas pagal pasirinktą
+          rezervacijos laiką.
         </p>
       )}
     </div>

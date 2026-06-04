@@ -4,9 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import Loader from "../components/Loader";
+import ConfirmModal from "../components/ConfirmModal";
 import ResponsiveImageFrame from "../components/ResponsiveImageFrame";
 
 const BUCKET = "public-images";
+const PARTNER_ROLES = ["partner", "venue_owner", "service_provider"];
+
+function isPartnerRole(role) {
+  return PARTNER_ROLES.includes(role);
+}
 
 function getPublicUrl(path) {
   if (!path) return null;
@@ -247,6 +253,8 @@ export default function PartnerPage() {
   const [settingsError, setSettingsError] = useState("");
   const [settingsSuccess, setSettingsSuccess] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteAccountConfirmOpen, setDeleteAccountConfirmOpen] =
+    useState(false);
   const [venue, setVenue] = useState(null);
   const [serviceProvider, setServiceProvider] = useState(null);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
@@ -294,7 +302,7 @@ export default function PartnerPage() {
           return;
         }
 
-        if (!currentRole || currentRole === "client") {
+        if (!isPartnerRole(currentRole)) {
           router.replace("/account");
           return;
         }
@@ -561,6 +569,7 @@ export default function PartnerPage() {
     setSettingsError("");
     setSettingsSuccess("");
     setDeleteConfirmText("");
+    setDeleteAccountConfirmOpen(false);
     setSettingsOpen(true);
 
     if (
@@ -663,12 +672,10 @@ export default function PartnerPage() {
       return;
     }
 
-    const ok = confirm(
-      "Ar tikrai norite visam laikui ištrinti savo partnerio paskyrą?",
-    );
+    setDeleteAccountConfirmOpen(true);
+  }
 
-    if (!ok) return;
-
+  async function confirmDeleteAccount() {
     setSettingsDeleting(true);
     setSettingsError("");
 
@@ -680,7 +687,12 @@ export default function PartnerPage() {
       await supabase.auth.signOut();
       router.replace("/");
     } catch (error) {
-      console.error("delete partner account error:", error);
+      console.warn("delete partner account error:", {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+      });
       setSettingsError(
         error?.message
           ? `Nepavyko ištrinti paskyros. ${error.message}`
@@ -688,6 +700,7 @@ export default function PartnerPage() {
       );
     } finally {
       setSettingsDeleting(false);
+      setDeleteAccountConfirmOpen(false);
     }
   }
 
@@ -828,51 +841,29 @@ export default function PartnerPage() {
             </p>
           </div>
 
-          {serviceProvider ? (
-            <div className="mt-[18px] rounded-[20px] bg-slate-50 p-[16px]">
-              <p className="ui-font text-[16px] font-semibold text-slate-900">
-                {serviceProvider.name}
-              </p>
-              <p className="mt-[4px] ui-font text-[13px] text-slate-500">
-                {serviceProvider.city || "Miestas nenurodytas"}
-              </p>
-            </div>
-          ) : (
-            <div className="mt-[18px] rounded-[20px] bg-slate-50 p-[16px]">
-              <p className="ui-font text-[14px] leading-[22px] text-slate-600">
-                Dar nesukūrėte paslaugų teikėjo profilio.
-              </p>
-            </div>
-          )}
+          <div className="mt-[18px] rounded-[20px] bg-slate-50 p-[16px]">
+            <p className="ui-font text-[14px] leading-[22px] text-slate-600">
+              Paslaugas valdysite su ta pačia partnerio paskyra. Atskiros
+              paskyros ar papildomo žingsnio kurti nereikia.
+            </p>
+          </div>
 
           <div className="mt-[18px] flex flex-col gap-[12px]">
-            {!serviceProvider ? (
-              <button
-                type="button"
-                onClick={() => router.push("/partner/onboarding/paslaugos")}
-                className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
-              >
-                Kurti paslaugų profilį
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => router.push("/partner/paslaugos")}
-                  className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
-                >
-                  Valdyti paslaugas
-                </button>
+            <button
+              type="button"
+              onClick={() => router.push("/partner/paslaugos")}
+              className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] bg-primary px-[18px] text-[15px] font-semibold text-white shadow-md transition hover:bg-dark"
+            >
+              Valdyti paslaugas
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => router.push("/partner/rezervacijos")}
-                  className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Rezervacijos
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => router.push("/partner/rezervacijos")}
+              className="ui-font inline-flex h-[50px] items-center justify-center rounded-[18px] border border-slate-200 bg-white px-[18px] text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Rezervacijos
+            </button>
           </div>
         </article>
       </section>
@@ -890,6 +881,21 @@ export default function PartnerPage() {
         onSubmit={handleSaveSettings}
         onDelete={handleDeleteAccount}
         onDeleteConfirmChange={setDeleteConfirmText}
+      />
+
+      <ConfirmModal
+        open={deleteAccountConfirmOpen}
+        title="Ištrinti partnerio paskyrą?"
+        message="Šis veiksmas pašalins prisijungimą visam laikui. Partnerio duomenys bus atjungti nuo paskyros, kad istorinės rezervacijos išliktų tvarkingos."
+        confirmLabel="Taip, ištrinti paskyrą"
+        cancelLabel="Ne, palikti"
+        loading={settingsDeleting}
+        onCancel={() => {
+          if (!settingsDeleting) {
+            setDeleteAccountConfirmOpen(false);
+          }
+        }}
+        onConfirm={confirmDeleteAccount}
       />
     </main>
   );

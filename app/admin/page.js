@@ -9,8 +9,7 @@ import { notifyBookingDecision } from "../lib/emailNotifications";
 
 const ROLE_OPTIONS = [
   { value: "client", label: "Klientas" },
-  { value: "partner", label: "Partneris" },
-  { value: "venue_owner", label: "Partneris (senas tipas: erdvė)" },
+  { value: "venue_owner", label: "Partneris" },
   { value: "service_provider", label: "Partneris (senas tipas: paslaugos)" },
   { value: "admin", label: "Administratorius" },
 ];

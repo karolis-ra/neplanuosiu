@@ -31,12 +31,7 @@ export default function Footer() {
             Platforma, padedanti greičiau rasti žaidimų kambarį vaikų
             gimtadieniui ir pateikti rezervacijos užklausą internetu.
           </p>
-          <div className="mt-5 text-sm text-slate-600">
-            <span className="inline-flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-accent" />
-              Lietuva
-            </span>
-          </div>
+          <div className="mt-5 text-sm text-slate-600"></div>
         </div>
 
         {footerLinks.map((group) => (
@@ -61,7 +56,9 @@ export default function Footer() {
 
       <div className="border-t border-slate-100">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-5 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} Neplanuosiu. Visos teisės saugomos.</p>
+          <p>
+            © {new Date().getFullYear()} Neplanuosiu. Visos teisės saugomos.
+          </p>
           <p>Vaikų gimtadieniai paprasčiau.</p>
         </div>
       </div>

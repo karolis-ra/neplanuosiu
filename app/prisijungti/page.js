@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import Loader from "../components/Loader";
 
+const PARTNER_ROLE = "venue_owner";
+
 function resolveRouteByRole(role, fallbackPath = "/account") {
   if (!role) {
     return "/prisijungti";
@@ -71,7 +73,7 @@ function LoginPageContent() {
           id: user.id,
           email: user.email || invite.email || null,
           full_name: user.user_metadata?.full_name || null,
-          role: "partner",
+          role: PARTNER_ROLE,
         },
         { onConflict: "id" },
       );
@@ -93,7 +95,7 @@ function LoginPageContent() {
         throw inviteUpdateError;
       }
 
-      return "partner";
+      return PARTNER_ROLE;
     }
 
     async function ensureRegisteredUser(user) {

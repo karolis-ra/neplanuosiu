@@ -1,14 +1,11 @@
 import { Suspense } from "react";
 import ServicesSelectionClient from "./ServicesSelectionClient";
+import Loader from "../../components/Loader";
 
 export default function ReservationServicesPage() {
   return (
     <Suspense
-      fallback={
-        <main className="mx-auto max-w-[1100px] px-[16px] py-[40px]">
-          <p className="ui-font text-[14px] text-slate-500">Kraunama...</p>
-        </main>
-      }
+      fallback={<Loader message="Kraunamos papildomos paslaugos..." />}
     >
       <ServicesSelectionClient />
     </Suspense>
