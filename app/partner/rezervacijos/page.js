@@ -16,9 +16,9 @@ function getStatusLabel(status) {
     case "rejected":
       return "Atmesta";
     case "cancelled":
-      return "Atsaukta";
+      return "Atšaukta";
     default:
-      return status || "Nezinoma";
+      return status || "Nežinoma";
   }
 }
 
@@ -96,7 +96,7 @@ function createSyntheticServiceApproval(booking, serviceRow) {
     venue_id: booking.room?.venue_id || null,
     provider_id: serviceRow.service?.provider_id || null,
     service_id: serviceRow.service_id,
-    status: "pending",
+    status: booking.status === "cancelled" ? "cancelled" : "pending",
     responded_at: null,
     created_at: booking.created_at || null,
     synthetic: true,
@@ -348,11 +348,13 @@ function decorateOrder(order, venueId, providerId) {
     canManage: Boolean(providerId && item.service?.provider_id === providerId),
   }));
 
+  const isCancelled = order.booking?.status === "cancelled";
   const pendingForViewer =
+    !isCancelled &&
     (viewerCanManageRoom && order.roomApproval.status === "pending") ||
-    services.some(
+    (!isCancelled && services.some(
       (item) => item.canManage && item.approval.status === "pending",
-    );
+    ));
 
   const manageableServices = services.filter((item) => item.canManage);
   const serviceStatusForViewer =
@@ -368,9 +370,11 @@ function decorateOrder(order, venueId, providerId) {
             ? "confirmed"
             : "pending";
 
-  const summaryStatus = viewerCanManageRoom
-    ? order.roomApproval.status || "pending"
-    : serviceStatusForViewer || order.roomApproval.status || "pending";
+  const summaryStatus = isCancelled
+    ? "cancelled"
+    : viewerCanManageRoom
+      ? order.roomApproval.status || "pending"
+      : serviceStatusForViewer || order.roomApproval.status || "pending";
 
   return {
     ...order,
@@ -467,15 +471,29 @@ function buildOrders({
       const roomApproval =
         approvalRows.find((item) => item.approval_type === "venue") ||
         createSyntheticRoomApproval(booking);
+      const normalizedRoomApproval =
+        booking.status === "cancelled"
+          ? {
+              ...roomApproval,
+              status: "cancelled",
+            }
+          : roomApproval;
 
       const serviceItems = (servicesByBooking.get(booking.id) || []).map(
         (serviceRow) => {
-          const approval =
+          const approvalRow =
             approvalRows.find(
               (item) =>
                 item.approval_type === "service" &&
                 item.service_id === serviceRow.service_id,
             ) || createSyntheticServiceApproval(booking, serviceRow);
+          const approval =
+            booking.status === "cancelled"
+              ? {
+                  ...approvalRow,
+                  status: "cancelled",
+                }
+              : approvalRow;
 
           return {
             ...serviceRow,
@@ -486,7 +504,14 @@ function buildOrders({
 
       approvalRows
         .filter((approval) => approval.approval_type === "service")
-        .forEach((approval) => {
+        .forEach((approvalRow) => {
+          const approval =
+            booking.status === "cancelled"
+              ? {
+                  ...approvalRow,
+                  status: "cancelled",
+                }
+              : approvalRow;
           const alreadyHasService = serviceItems.some(
             (item) => item.service_id === approval.service_id,
           );
@@ -513,7 +538,7 @@ function buildOrders({
         {
           id: booking.id,
           booking,
-          roomApproval,
+          roomApproval: normalizedRoomApproval,
           services: serviceItems,
         },
         venueId,
@@ -1023,7 +1048,8 @@ export default function PartnerReservationsPage() {
       (order) =>
         !order.pendingForViewer &&
         (order.summaryStatus === "confirmed" ||
-          order.summaryStatus === "rejected"),
+          order.summaryStatus === "rejected" ||
+          order.summaryStatus === "cancelled"),
     );
 
     return {
@@ -1032,7 +1058,11 @@ export default function PartnerReservationsPage() {
       confirmed: processed.filter(
         (order) => order.summaryStatus === "confirmed",
       ),
-      rejected: processed.filter((order) => order.summaryStatus === "rejected"),
+      rejected: processed.filter(
+        (order) =>
+          order.summaryStatus === "rejected" ||
+          order.summaryStatus === "cancelled",
+      ),
     };
   }, [orders]);
 
@@ -1095,7 +1125,7 @@ export default function PartnerReservationsPage() {
               Klientu užsakymai
             </h1>
             <p className="mt-[12px] ui-font text-[15px] leading-[24px] text-slate-600">
-              Vienoje vietoje matysite kambario rezervacija ir visas su ja
+              Vienoje vietoje matysite kambario rezervacijas ir visas su jomis
               susietas papildomas paslaugas.
             </p>
             {venue && (

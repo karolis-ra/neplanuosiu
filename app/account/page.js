@@ -267,13 +267,13 @@ function PriceRow({ label, value }) {
   );
 }
 
-function RejectionReason({ reason }) {
+function RejectionReason({ reason, label = "Atmetimo priežastis" }) {
   if (!reason) return null;
 
   return (
     <div className="mt-[12px] rounded-[18px] bg-red-50 px-[14px] py-[12px]">
       <p className="ui-font text-[12px] font-semibold text-red-700">
-        Atmetimo priežastis
+        {label}
       </p>
       <p className="mt-[6px] ui-font text-[14px] leading-[22px] text-red-700">
         {reason}
@@ -479,7 +479,7 @@ function AccountSettingsModal({
 
 function buildBookingDetails(booking) {
   const approvals = booking?.booking_approvals || [];
-  const roomApproval = approvals
+  const pickedRoomApproval = approvals
     .filter((approval) => approval.approval_type === "venue")
     .reduce(
       (current, approval) => pickBestApproval(current, approval),
@@ -489,6 +489,13 @@ function buildBookingDetails(booking) {
     status: booking.status || "pending",
     approval_type: "venue",
   };
+  const roomApproval =
+    booking?.status === "cancelled"
+      ? {
+          ...pickedRoomApproval,
+          status: "cancelled",
+        }
+      : pickedRoomApproval;
 
   const approvalsByService = approvals
     .filter((approval) => approval.approval_type === "service")
@@ -500,15 +507,25 @@ function buildBookingDetails(booking) {
 
   return {
     roomApproval,
-    serviceItems: (booking?.booking_services || []).map((item) => ({
-      ...item,
-      approval: approvalsByService.get(item.service_id) || {
+    serviceItems: (booking?.booking_services || []).map((item) => {
+      const pickedApproval = approvalsByService.get(item.service_id) || {
         id: `synthetic-service-${booking.id}-${item.service_id}`,
-        status: "pending",
+        status: booking?.status === "cancelled" ? "cancelled" : "pending",
         approval_type: "service",
         service_id: item.service_id,
-      },
-    })),
+      };
+
+      return {
+        ...item,
+        approval:
+          booking?.status === "cancelled"
+            ? {
+                ...pickedApproval,
+                status: "cancelled",
+              }
+            : pickedApproval,
+      };
+    }),
   };
 }
 
@@ -647,6 +664,12 @@ function ClientReservationDetailsModal({ booking, onClose }) {
             {roomApproval.status === "rejected" && (
               <RejectionReason reason={roomApproval.rejection_reason} />
             )}
+            {roomApproval.status === "cancelled" && (
+              <RejectionReason
+                reason={roomApproval.rejection_reason}
+                label="Atšaukimo priežastis"
+              />
+            )}
           </article>
 
           {serviceItems.map((item) => {
@@ -695,6 +718,12 @@ function ClientReservationDetailsModal({ booking, onClose }) {
                 {item.approval.status === "rejected" && (
                   <RejectionReason reason={item.approval.rejection_reason} />
                 )}
+                {item.approval.status === "cancelled" && (
+                  <RejectionReason
+                    reason={item.approval.rejection_reason}
+                    label="Atšaukimo priežastis"
+                  />
+                )}
               </article>
             );
           })}
@@ -702,6 +731,72 @@ function ClientReservationDetailsModal({ booking, onClose }) {
       </section>
     </div>
   );
+}
+
+async function saveClientCancellationApprovals({ booking, reason, nowIso }) {
+  const approvals = booking?.booking_approvals || [];
+  const approvalIds = approvals
+    .map((approval) => approval.id)
+    .filter((id) => id && !String(id).startsWith("synthetic-"));
+  const updatePayload = {
+    status: "cancelled",
+    responded_at: nowIso,
+    rejection_reason: reason,
+  };
+
+  if (approvalIds.length) {
+    const { error } = await supabase
+      .from("booking_approvals")
+      .update(updatePayload)
+      .in("id", approvalIds);
+
+    if (error) return error;
+  }
+
+  const hasVenueApproval = approvals.some(
+    (approval) => approval.approval_type === "venue",
+  );
+  const existingServiceApprovalIds = new Set(
+    approvals
+      .filter((approval) => approval.approval_type === "service")
+      .map((approval) => approval.service_id)
+      .filter(Boolean),
+  );
+  const venueId = booking?.room?.venue_id || null;
+  const missingRows = [];
+
+  if (!hasVenueApproval) {
+    missingRows.push({
+      booking_id: booking.id,
+      approval_type: "venue",
+      venue_id: venueId,
+      status: "cancelled",
+      responded_at: nowIso,
+      rejection_reason: reason,
+    });
+  }
+
+  (booking?.booking_services || []).forEach((item) => {
+    if (!item.service_id || existingServiceApprovalIds.has(item.service_id)) {
+      return;
+    }
+
+    missingRows.push({
+      booking_id: booking.id,
+      approval_type: "service",
+      venue_id: venueId,
+      provider_id: item.service?.provider_id || null,
+      service_id: item.service_id,
+      status: "cancelled",
+      responded_at: nowIso,
+      rejection_reason: reason,
+    });
+  });
+
+  if (!missingRows.length) return null;
+
+  const { error } = await supabase.from("booking_approvals").insert(missingRows);
+  return error || null;
 }
 
 export default function AccountPage() {
@@ -722,6 +817,10 @@ export default function AccountPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteAccountConfirmOpen, setDeleteAccountConfirmOpen] =
     useState(false);
+  const [cancelBookingId, setCancelBookingId] = useState("");
+  const [cancelBookingReason, setCancelBookingReason] = useState("");
+  const [cancellingBooking, setCancellingBooking] = useState(false);
+  const [reservationActionError, setReservationActionError] = useState("");
   const [reservationTab, setReservationTab] = useState("active");
   const [reservationSearch, setReservationSearch] = useState("");
   const [activeBookingId, setActiveBookingId] = useState("");
@@ -879,6 +978,8 @@ export default function AccountPage() {
                 name,
                 service_type,
                 room_id,
+                provider_id,
+                venue_id,
                 provider:service_providers (
                   name,
                   email,
@@ -890,6 +991,8 @@ export default function AccountPage() {
               id,
               approval_type,
               service_id,
+              venue_id,
+              provider_id,
               status,
               rejection_reason,
               responded_at,
@@ -899,6 +1002,7 @@ export default function AccountPage() {
               id,
               name,
               city,
+              venue_id,
               venue:venues (
                 name,
                 address,
@@ -1036,6 +1140,10 @@ export default function AccountPage() {
     () => bookings.find((booking) => booking.id === activeBookingId) || null,
     [activeBookingId, bookings],
   );
+  const cancelBooking = useMemo(
+    () => bookings.find((booking) => booking.id === cancelBookingId) || null,
+    [cancelBookingId, bookings],
+  );
 
   function handleOpenBookingDetails(booking) {
     setActiveBookingId(booking.id);
@@ -1062,14 +1170,40 @@ export default function AccountPage() {
     if (!booking) return;
 
     if (!canCancelBooking(booking)) {
-      alert(
+      setReservationActionError(
         "Šios rezervacijos atšaukti nebegalima, nes liko mažiau nei 48 valandos iki šventės pradžios.",
       );
       return;
     }
 
-    const ok = confirm("Ar tikrai norite atšaukti šią rezervaciją?");
-    if (!ok) return;
+    setReservationActionError("");
+    setCancelBookingReason("");
+    setCancelBookingId(bookingId);
+  };
+
+  const confirmCancelBooking = async () => {
+    const bookingId = cancelBookingId;
+    const booking = bookings.find((b) => b.id === bookingId);
+    if (!booking) return;
+    const reason = cancelBookingReason.trim();
+
+    if (!reason) {
+      setReservationActionError("Įrašykite rezervacijos atšaukimo priežastį.");
+      return;
+    }
+
+    if (!canCancelBooking(booking)) {
+      setCancelBookingId("");
+      setCancelBookingReason("");
+      setReservationActionError(
+        "Šios rezervacijos atšaukti nebegalima, nes liko mažiau nei 48 valandos iki šventės pradžios.",
+      );
+      return;
+    }
+
+    setCancellingBooking(true);
+    setReservationActionError("");
+    const nowIso = new Date().toISOString();
 
     const { error } = await supabase
       .from("bookings")
@@ -1078,13 +1212,68 @@ export default function AccountPage() {
 
     if (error) {
       console.error("cancel booking error:", error.message);
-      alert("Nepavyko atšaukti rezervacijos. Bandykite dar kartą.");
+      setReservationActionError(
+        "Nepavyko atšaukti rezervacijos. Bandykite dar kartą.",
+      );
+      setCancelBookingId("");
+      setCancellingBooking(false);
+      return;
+    }
+
+    const approvalsError = await saveClientCancellationApprovals({
+      booking,
+      reason,
+      nowIso,
+    });
+
+    if (approvalsError) {
+      console.error("cancel booking approvals error:", approvalsError.message);
+      setReservationActionError(
+        "Rezervacija atšaukta, bet nepavyko atnaujinti partnerio patvirtinimo įrašų. Perkraukite puslapį arba bandykite dar kartą.",
+      );
+      setCancelBookingId("");
+      setCancelBookingReason("");
+      setCancellingBooking(false);
       return;
     }
 
     setBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, status: "cancelled" } : b)),
+      prev.map((b) =>
+        b.id === bookingId
+          ? {
+              ...b,
+              status: "cancelled",
+              booking_approvals: [
+                {
+                  id: `local-venue-cancelled-${bookingId}`,
+                  approval_type: "venue",
+                  service_id: null,
+                  venue_id: b.room?.venue_id || null,
+                  provider_id: null,
+                  status: "cancelled",
+                  rejection_reason: reason,
+                  responded_at: nowIso,
+                  created_at: nowIso,
+                },
+                ...(b.booking_services || []).map((item) => ({
+                  id: `local-service-cancelled-${bookingId}-${item.service_id}`,
+                  approval_type: "service",
+                  service_id: item.service_id,
+                  venue_id: b.room?.venue_id || null,
+                  provider_id: item.service?.provider_id || null,
+                  status: "cancelled",
+                  rejection_reason: reason,
+                  responded_at: nowIso,
+                  created_at: nowIso,
+                })),
+              ],
+            }
+          : b,
+      ),
     );
+    setCancelBookingId("");
+    setCancelBookingReason("");
+    setCancellingBooking(false);
   };
 
   function openSettingsModal() {
@@ -1328,6 +1517,12 @@ export default function AccountPage() {
           </label>
         </div>
 
+        {reservationActionError && (
+          <div className="ui-font rounded-[18px] bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {reservationActionError}
+          </div>
+        )}
+
         {filteredShownBookings.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
             <p className="text-sm text-slate-600 ui-font">
@@ -1494,6 +1689,74 @@ export default function AccountPage() {
         }}
         onConfirm={confirmDeleteAccount}
       />
+
+      {cancelBooking && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/55 px-[16px] py-[20px]">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              confirmCancelBooking();
+            }}
+            className="w-full max-w-[560px] overflow-hidden rounded-[28px] bg-white shadow-2xl"
+          >
+            <div className="border-b border-slate-200 px-[20px] py-[16px]">
+              <p className="ui-font text-[12px] font-semibold uppercase tracking-[0.12em] text-primary">
+                Rezervacijos atšaukimas
+              </p>
+              <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
+                Atšaukti rezervaciją?
+              </h2>
+            </div>
+
+            <div className="space-y-[14px] px-[20px] py-[20px]">
+              <p className="ui-font text-[15px] leading-[24px] text-slate-600">
+                Rezervacija {cancelBooking.reservation_code || ""} bus pažymėta
+                kaip atšaukta. Partneris matys jūsų nurodytą priežastį.
+              </p>
+
+              <label className="block">
+                <span className="ui-font text-[13px] font-semibold text-slate-600">
+                  Atšaukimo priežastis
+                </span>
+                <textarea
+                  value={cancelBookingReason}
+                  onChange={(event) =>
+                    setCancelBookingReason(event.target.value)
+                  }
+                  rows={4}
+                  maxLength={500}
+                  placeholder="Pvz. pasikeitė planai arba nebegalime atvykti pasirinktu laiku."
+                  className="mt-[6px] w-full resize-none rounded-[16px] border border-slate-200 bg-white px-[14px] py-[12px] ui-font text-[14px] leading-[22px] text-slate-800 outline-none transition focus:border-primary"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-col-reverse gap-[10px] border-t border-slate-200 px-[20px] py-[16px] sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!cancellingBooking) {
+                    setCancelBookingId("");
+                    setCancelBookingReason("");
+                  }
+                }}
+                disabled={cancellingBooking}
+                className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Ne, palikti
+              </button>
+
+              <button
+                type="submit"
+                disabled={cancellingBooking || !cancelBookingReason.trim()}
+                className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-red-600 px-[16px] text-[14px] font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+              >
+                {cancellingBooking ? "Atšaukiama..." : "Taip, atšaukti"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </main>
   );
 }

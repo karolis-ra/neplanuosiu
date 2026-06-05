@@ -21,13 +21,15 @@ const benefits = [
   },
   {
     title: "Aiškios kainos",
-    description: "Palyginkite kambarius pagal kainą, miestą ir dydį.",
+    description:
+      "Patogiai palyginkite paslaugų kainas ir išsirinkite tinkamiausią.",
     icon: Coins,
     color: "bg-amber-50 text-amber-700",
   },
   {
     title: "Patikrintos vietos",
-    description: "Vienoje vietoje raskite žaidimų erdves gimtadieniams.",
+    description:
+      "Vienoje vietoje raskite žaidimų erdves gimtadieniams ir papildomas paslaugas.",
     icon: ShieldCheck,
     color: "bg-sky-50 text-sky-700",
   },
@@ -124,7 +126,7 @@ export default function HomeSections() {
           <SectionHeader
             eyebrow="Miestai"
             title="Raskite vietą arčiau namų"
-            description="Pradėkite nuo miesto ir greitai pereikite prie laisvų žaidimų kambarių sąrašo."
+            description="Žaidimų kambariai Jūsų mieste"
           />
 
           <div className="mt-9 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -137,9 +139,6 @@ export default function HomeSections() {
                 <span>
                   <span className="heading block text-lg font-bold text-slate-950">
                     {city}
-                  </span>
-                  <span className="ui-font mt-1 block text-sm text-slate-500">
-                    Žaidimų kambariai
                   </span>
                 </span>
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-primary transition group-hover:bg-primary group-hover:text-white">
@@ -162,7 +161,7 @@ export default function HomeSections() {
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-600">
               Neplanuosiu padeda greitai surasti, bei rezervuoti paslaugas ir
-              palieka daugiau laiko pačiai šventei.
+              palieka daugiau laiko šventei.
             </p>
           </div>
 
@@ -203,8 +202,8 @@ export default function HomeSections() {
                 Turite žaidimų kambarį?
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100 md:text-base">
-                Prisijunkite prie platformos, valdykite rezervacijas ir
-                parodykite savo erdvę šeimoms, kurios jau ieško šventės vietos.
+                Prisijunkite prie platformos, valdykite savo paslaugas ir būkite
+                matomi.
               </p>
             </div>
           </div>

@@ -97,10 +97,13 @@ function ItemCard({
             <p className="ui-font text-[14px] text-slate-500">{subtitle}</p>
           )}
 
-          {status === "rejected" && rejectionReason && (
+          {(status === "rejected" || status === "cancelled") &&
+            rejectionReason && (
             <div className="rounded-[18px] bg-red-50 px-[14px] py-[12px]">
               <p className="ui-font text-[12px] font-semibold text-red-700">
-                Atmetimo priežastis
+                {status === "cancelled"
+                  ? "Atšaukimo priežastis"
+                  : "Atmetimo priežastis"}
               </p>
               <p className="mt-[6px] ui-font text-[14px] leading-[22px] text-red-700">
                 {rejectionReason}

@@ -88,10 +88,7 @@ export default function BookingActionButtons({
           srauto.
         </p>
       ) : (
-        <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500">
-          Kitame žingsnyje peržiūrėsite papildomas paslaugas pagal pasirinktą
-          rezervacijos laiką.
-        </p>
+        <p className="ui-font text-center text-[13px] leading-[20px] text-slate-500"></p>
       )}
     </div>
   );

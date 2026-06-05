@@ -24,10 +24,6 @@ export default function Footer() {
           <Link href="/" className="heading text-xl font-bold text-primary">
             NEPLANUOSIU
           </Link>
-          <p className="mt-4 max-w-sm text-sm leading-6 text-slate-600">
-            Platforma, padedanti greičiau rasti žaidimų kambarį vaikų
-            gimtadieniui ir pateikti rezervacijos užklausą internetu.
-          </p>
           <div className="mt-5 text-sm text-slate-600"></div>
         </div>
 
