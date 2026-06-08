@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function getStatusLabel(status) {
   switch (status) {
@@ -168,6 +168,17 @@ export default function PartnerReservationDetailsModal({
   const [rejectionTarget, setRejectionTarget] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
+  useEffect(() => {
+    if (!open || !order) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open, order]);
+
   if (!open || !order) return null;
 
   const booking = order.booking || {};
@@ -207,8 +218,8 @@ export default function PartnerReservationDetailsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
-      <section className="w-full max-w-[1100px] rounded-[28px] bg-white p-[22px] shadow-xl">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-900/60 px-[16px] py-[24px]">
+      <section className="mx-auto w-full max-w-[1100px] rounded-[28px] bg-white p-[22px] shadow-2xl">
         <div className="mb-[18px] flex items-start justify-between gap-[16px]">
           <div>
             <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">

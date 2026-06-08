@@ -15,7 +15,7 @@ export default function ConfirmModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/55 px-[16px] py-[20px]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/55 px-[16px] py-[20px]">
       <div className="w-full max-w-[520px] overflow-hidden rounded-[28px] bg-white shadow-2xl">
         <div className="border-b border-slate-200 px-[20px] py-[16px]">
           <h2 className="ui-font text-[24px] font-semibold text-slate-900">

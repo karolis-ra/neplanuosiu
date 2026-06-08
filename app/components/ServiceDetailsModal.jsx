@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ResponsiveImageFrame from "./ResponsiveImageFrame";
 
 function formatPrice(value) {
@@ -16,6 +16,17 @@ export default function ServiceDetailsModal({
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
+  useEffect(() => {
+    if (!open || !service) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open, service]);
+
   const gallery = useMemo(() => {
     if (!service?.images || !service.images.length) return [];
     return service.images;
@@ -28,8 +39,8 @@ export default function ServiceDetailsModal({
   if (!open || !service) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-[16px] py-[20px]">
-      <div className="max-h-[88vh] w-full max-w-[720px] overflow-hidden rounded-[28px] bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-900/60 px-[16px] py-[24px]">
+      <div className="mx-auto w-full max-w-[720px] overflow-hidden rounded-[28px] bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-[18px] border-b border-slate-200 px-[28px] py-[22px]">
           <div>
             <p className="ui-font text-[22px] font-semibold leading-[30px] text-slate-900">
@@ -60,7 +71,7 @@ export default function ServiceDetailsModal({
           </button>
         </div>
 
-        <div className="max-h-[calc(88vh-90px)] overflow-y-auto px-[28px] py-[24px]">
+        <div className="px-[28px] py-[24px]">
           <ResponsiveImageFrame
             src={activeImage?.url || service.image_url}
             alt={activeImage?.alt || service.image_alt || service.name}

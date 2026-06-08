@@ -443,6 +443,17 @@ function AdminReservationDetailsModal({
   onClose,
   onDecision,
 }) {
+  useEffect(() => {
+    if (!booking) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [booking]);
+
   if (!booking) return null;
 
   const room = booking.room || {};
@@ -451,8 +462,8 @@ function AdminReservationDetailsModal({
   const roomItemKey = `venue:${booking.id}`;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
-      <section className="w-full max-w-[1100px] rounded-[28px] bg-white p-[22px] shadow-xl">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-900/60 px-[16px] py-[24px]">
+      <section className="mx-auto w-full max-w-[1100px] rounded-[28px] bg-white p-[22px] shadow-2xl">
         <div className="mb-[18px] flex items-start justify-between gap-[16px]">
           <div>
             <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
@@ -840,6 +851,77 @@ function EditEntityModal({
   );
 }
 
+function DeleteUserConfirmModal({
+  user,
+  confirmText,
+  loading,
+  onConfirmTextChange,
+  onCancel,
+  onConfirm,
+}) {
+  if (!user) return null;
+
+  const userLabel = user.email || user.full_name || user.id;
+  const canDelete = confirmText.trim().toLowerCase() === "ištrinti";
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 px-[16px] py-[20px]">
+      <section className="w-full max-w-[560px] overflow-hidden rounded-[28px] bg-white shadow-2xl">
+        <div className="border-b border-slate-200 px-[22px] py-[18px]">
+          <p className="ui-font text-[12px] font-semibold uppercase tracking-[0.12em] text-red-600">
+            Vartotojo trynimas
+          </p>
+          <h2 className="mt-[6px] ui-font text-[24px] font-semibold text-slate-900">
+            Ištrinti paskyrą?
+          </h2>
+        </div>
+
+        <div className="space-y-[14px] px-[22px] py-[20px]">
+          <p className="ui-font text-[15px] leading-[24px] text-slate-600">
+            Bus ištrinta vartotojo paskyra{" "}
+            <span className="font-semibold text-slate-900">{userLabel}</span>.
+            Šio veiksmo atšaukti negalima.
+          </p>
+
+          <label className="block">
+            <span className="ui-font text-[13px] font-semibold text-slate-600">
+              Patvirtinimui įrašykite „ištrinti“
+            </span>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(event) => onConfirmTextChange(event.target.value)}
+              disabled={loading}
+              autoFocus
+              className="mt-[6px] h-[46px] w-full rounded-[16px] border border-slate-200 bg-white px-[14px] ui-font text-[14px] text-slate-800 outline-none transition focus:border-red-400 disabled:cursor-not-allowed disabled:bg-slate-100"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-col-reverse gap-[10px] border-t border-slate-200 px-[22px] py-[16px] sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] border border-slate-200 bg-white px-[16px] text-[14px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Atšaukti
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canDelete || loading}
+            className="ui-font inline-flex h-[46px] items-center justify-center rounded-[16px] bg-red-600 px-[16px] text-[14px] font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+          >
+            {loading ? "Trinama..." : "Ištrinti vartotoją"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
 
@@ -862,6 +944,8 @@ export default function AdminPage() {
   const [requestSearch, setRequestSearch] = useState("");
   const [generatedInviteLinks, setGeneratedInviteLinks] = useState({});
   const [editingEntity, setEditingEntity] = useState(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState(null);
+  const [deleteUserConfirmText, setDeleteUserConfirmText] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1284,14 +1368,28 @@ export default function AdminPage() {
     }
 
     const userToDelete = users.find((user) => user.id === userId);
-    const confirmed = window.confirm(
-      `Ar tikrai norite ištrinti paskyrą: ${
-        userToDelete?.email || userToDelete?.full_name || userId
-      }?`,
-    );
+    if (!userToDelete) {
+      showError("Nepavyko rasti trinamo vartotojo.");
+      return;
+    }
 
-    if (!confirmed) return;
+    setDeleteUserTarget(userToDelete);
+    setDeleteUserConfirmText("");
+    setErrorMsg("");
+    setSuccessMsg("");
+  }
 
+  function closeDeleteUserModal() {
+    if (savingKey) return;
+    setDeleteUserTarget(null);
+    setDeleteUserConfirmText("");
+  }
+
+  async function confirmDeleteUser() {
+    if (!deleteUserTarget) return;
+    if (deleteUserConfirmText.trim().toLowerCase() !== "ištrinti") return;
+
+    const userId = deleteUserTarget.id;
     setSavingKey(`delete-user:${userId}`);
     const { error } = await supabase.rpc("admin_delete_user", {
       target_user_id: userId,
@@ -1304,6 +1402,8 @@ export default function AdminPage() {
     }
 
     setUsers((current) => current.filter((user) => user.id !== userId));
+    setDeleteUserTarget(null);
+    setDeleteUserConfirmText("");
     showSuccess("Vartotojo paskyra ištrinta.");
   }
 
@@ -2114,6 +2214,17 @@ export default function AdminPage() {
         onAskConfirm={askConfirmEdit}
         onBack={backToEdit}
         onSave={handleSaveEdit}
+      />
+      <DeleteUserConfirmModal
+        user={deleteUserTarget}
+        confirmText={deleteUserConfirmText}
+        loading={
+          Boolean(deleteUserTarget) &&
+          savingKey === `delete-user:${deleteUserTarget.id}`
+        }
+        onConfirmTextChange={setDeleteUserConfirmText}
+        onCancel={closeDeleteUserModal}
+        onConfirm={confirmDeleteUser}
       />
     </main>
   );

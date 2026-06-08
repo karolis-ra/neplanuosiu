@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { buildRoomsWithImages } from "../lib/roomImageUtils";
 import RoomCard from "../components/RoomCard";
@@ -554,7 +555,18 @@ function getBookingSummaryStatus(booking) {
 }
 
 function ClientReservationDetailsModal({ booking, onClose }) {
-  if (!booking) return null;
+  useEffect(() => {
+    if (!booking) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [booking]);
+
+  if (!booking || typeof document === "undefined") return null;
 
   const room = booking.room || {};
   const venue = room.venue || {};
@@ -574,9 +586,12 @@ function ClientReservationDetailsModal({ booking, onClose }) {
       ? booking.base_price
       : Math.max(Number(totalPrice || 0) - servicesPrice, 0);
 
-  return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/45 px-[16px] py-[28px]">
-      <section className="w-full max-w-[980px] rounded-[28px] bg-white p-[22px] shadow-xl">
+  return createPortal(
+    <div
+      className="fixed inset-0 overflow-y-auto bg-slate-900/60 px-[16px] py-[24px]"
+      style={{ zIndex: 2147483647 }}
+    >
+      <section className="mx-auto w-full max-w-[980px] rounded-[28px] bg-white p-[22px] shadow-2xl">
         <div className="mb-[18px] flex items-start justify-between gap-[16px]">
           <div>
             <p className="ui-font text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
@@ -729,7 +744,8 @@ function ClientReservationDetailsModal({ booking, onClose }) {
           })}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
