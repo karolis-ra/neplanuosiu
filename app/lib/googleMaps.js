@@ -85,8 +85,8 @@ export function extractCoordinatesFromGoogleMapsUrl(url) {
   }
 
   for (const pattern of [
-    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
   ]) {
     const match = trimmedUrl.match(pattern);
 
@@ -163,12 +163,12 @@ export function buildGoogleMapsEmbedUrl({
   const hasCoords =
     typeof latitude === "number" && typeof longitude === "number";
 
-  if (placeQuery || fallbackQuery) {
-    return `https://www.google.com/maps?q=${query}&z=${zoom}&output=embed`;
-  }
-
   if (hasCoords) {
     return `https://www.google.com/maps?q=${latitude},${longitude}&z=${zoom}&output=embed`;
+  }
+
+  if (placeQuery || fallbackQuery) {
+    return `https://www.google.com/maps?q=${query}&z=${zoom}&output=embed`;
   }
 
   if (!placeQuery && !fallbackQuery) {

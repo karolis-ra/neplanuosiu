@@ -17,8 +17,8 @@ export default function VenueMap({
   zoom = DEFAULT_ZOOM,
 }) {
   const urlCoordinates = extractCoordinatesFromGoogleMapsUrl(googleMapsUrl);
-  const resolvedLatitude = urlCoordinates?.latitude ?? latitude;
-  const resolvedLongitude = urlCoordinates?.longitude ?? longitude;
+  const resolvedLatitude = latitude ?? urlCoordinates?.latitude;
+  const resolvedLongitude = longitude ?? urlCoordinates?.longitude;
   const hasLocationQuery = Boolean(name || address || city);
 
   const hasCoords =

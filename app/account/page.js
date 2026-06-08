@@ -1441,45 +1441,6 @@ export default function AccountPage() {
         </button>
       </header>
 
-      <section className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-xl font-semibold ui-font">Pamėgti kambariai</h2>
-          <span className="text-sm text-slate-500">
-            Iš viso: {rooms.length}
-          </span>
-        </div>
-
-        {rooms.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-            <p className="text-base font-medium text-slate-800 ui-font">
-              Neturite pamėgtų kambarių
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Naršykite kambarius ir spauskite širdelę, kad juos
-              išsaugotumėte.
-            </p>
-
-            <a
-              href="/paieska"
-              className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-medium text-white hover:bg-primary/90 transition"
-            >
-              Peržiūrėti kambarius
-            </a>
-          </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {rooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                room={room}
-                initialIsFavorite={true}
-                onFavoriteChange={handleFavoriteChange}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
       <section id="rezervacijos" className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <h2 className="text-xl font-semibold ui-font">Mano rezervacijos</h2>
@@ -1651,6 +1612,45 @@ export default function AccountPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <h2 className="text-xl font-semibold ui-font">Pamėgti kambariai</h2>
+          <span className="text-sm text-slate-500">
+            Iš viso: {rooms.length}
+          </span>
+        </div>
+
+        {rooms.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+            <p className="text-base font-medium text-slate-800 ui-font">
+              Neturite pamėgtų kambarių
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Naršykite kambarius ir spauskite širdelę, kad juos
+              išsaugotumėte.
+            </p>
+
+            <a
+              href="/paieska"
+              className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-medium text-white hover:bg-primary/90 transition"
+            >
+              Peržiūrėti kambarius
+            </a>
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {rooms.map((room) => (
+              <RoomCard
+                key={room.id}
+                room={room}
+                initialIsFavorite={true}
+                onFavoriteChange={handleFavoriteChange}
+              />
+            ))}
           </div>
         )}
       </section>
